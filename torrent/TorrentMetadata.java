@@ -1,3 +1,5 @@
+package torrent;
+
 import java.util.List;
 
 public class TorrentMetadata {
