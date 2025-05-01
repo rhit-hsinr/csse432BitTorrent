@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -36,85 +37,124 @@ public class bitTClient {
             e.printStackTrace();
         }
 
-        // start tcp connection with tracker to get list of peers
-        // get host and port from torrent file
-        String host = "";
-        int port = 0;
-        Socket socket;
-        String urlString = "get from tracker";
-        URL url = new URL(urlString);
+        // send get request to tracker to get peer list
 
+        // stuff for get request
+        String trackerURL;
+        String infoHash;
+        String peerId;
+        int port = 6881; // common port
+        long uploaded = 0;
+        long downloaded = 0;
+        long left = 0; // from the torrent file
+        String event = "started";
+
+        // make request
+        String urlS = String.format("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
+                trackerURL, infoHash, peerId, port, uploaded, downloaded, left, event);
+
+        // make connection
+        URL url;
         try {
-            socket = new Socket(host, port);
-
-            // for sending a recv
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-
-            // get key-value pairs
-            Map<String, String> params = new HashMap<>();
-            params.put("info_hash", "IDK&");
-            params.put("peer_id", "len20Random&"); // generate random id at start of every new download
-            params.put("port", Integer.toString(port) + "&");
-            params.put("uploaded", "0&");
-            params.put("downloaded", "0&");
-            params.put("left", Integer.toString(totalfromtracker));
-
-            // make get request
+            url = new URL(urlS);
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
 
-            con.setDoOutput(true);
-            DataOutputStream outURL = new DataOutputStream(con.getOutputStream());
-            outURL.writeBytes(mapToStringBuilder(params));
+            // read response to get peer list and start connection with peers
+            BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println("line: " + line);
+            }
+            // pull out ip addrs and ports of peers from tracker (decode bencode)
 
-            outURL.flush();
-            outURL.close();
+            // make connections to them with threads
 
-            // send get request
-
-            String request = "GET /announce?" + keyStuff + " HTTP/1.1\r\n" +
-                    "Host: " + host + "\r\n" +
-                    "Connection: close\r\n" +
-                    "\r\n";
-
-            // Send the request
-            out.print(request);
-            out.flush();
-
-            // get encoded response
-
-            // close everything
-            in.close();
-            out.close();
-            socket.close();
-
-        } catch (UnknownHostException e) {
-
+        } catch (MalformedURLException e) {
             e.printStackTrace();
         } catch (IOException e) {
-
             e.printStackTrace();
         }
 
     }
 
-    public static String mapToStringBuilder(Map<String, String> params)
-    {
-        StringBuilder finalString = new StringBuilder();
-
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            finalString.append(URLEncoder.encode(entry.getKey(), "UTF-8"));
-            finalString.append("=");
-            finalString.append(URLEncoder.encode(entry.getValue(), "UTF-8"));
-            finalString.append("&");
-        }
-
-        String resultString = finalString.toString();
-        return resultString.length() > 0
-          ? resultString.substring(0, resultString.length() - 1)
-          : resultString;
-
-        return finalString.toString();
-
 }
+
+// public static String mapToStringBuilder(Map<String, String> params)
+// {
+// StringBuilder finalString = new StringBuilder();
+
+// for (Map.Entry<String, String> entry : params.entrySet()) {
+// finalString.append(URLEncoder.encode(entry.getKey(), "UTF-8"));
+// finalString.append("=");
+// finalString.append(URLEncoder.encode(entry.getValue(), "UTF-8"));
+// finalString.append("&");
+// }
+
+// String resultString = finalString.toString();
+// return resultString.length() > 0
+// ? resultString.substring(0, resultString.length() - 1)
+// : resultString;
+
+// return finalString.toString();
+
+// }
+
+// Map<String, String> params = new HashMap<>();
+// params.put("info_hash", "IDK&");
+// params.put("peer_id", "len20Random&"); // generate random id at start of
+// every new download
+// params.put("port", Integer.toString(port) + "&");
+// params.put("uploaded", "0&");
+// params.put("downloaded", "0&");
+// params.put("left", Integer.toString(totalfromtracker));
+
+// // make get request
+// HttpURLConnection con = (HttpURLConnection) url.openConnection();
+// con.setRequestMethod("GET");
+
+// con.setDoOutput(true);
+// DataOutputStream outURL = new DataOutputStream(con.getOutputStream());
+// outURL.writeBytes(mapToStringBuilder(params));
+
+// outURL.flush();
+// outURL.close();
+
+// // send get request
+
+// String request = "GET /announce?" + keyStuff + " HTTP/1.1\r\n" +
+// "Host: " + host + "\r\n" +
+// "Connection: close\r\n" +
+// "\r\n";
+
+// // Send the request
+// out.print(request);
+// out.flush();
+
+// Socket socket;
+// String urlString = "get from tracker";
+// URL url = new URL(urlString);
+// try {
+// socket = new Socket(host, port);
+
+// // for sending a recv
+// BufferedReader in = new BufferedReader(new
+// InputStreamReader(socket.getInputStream()));
+// PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
+// //need to send an http get to get peer list from tracker
+
+// // get encoded response
+
+// // close everything
+// in.close();
+// out.close();
+// socket.close();
+
+// } catch (UnknownHostException e) {
+
+// e.printStackTrace();
+// } catch (IOException e) {
+
+// e.printStackTrace();
+// }
