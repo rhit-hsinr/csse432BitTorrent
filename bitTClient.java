@@ -2,6 +2,8 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
@@ -10,9 +12,13 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
+
+
+import com.github.cdefgah.bencoder4j.*;
 
 public class bitTClient {
 
@@ -26,10 +32,10 @@ public class bitTClient {
         // open tor file and decode
 
         // use size from decoded file to allocate space for file
-        File file = new File(args[1]);
+        File torrentFile = new File(args[1]); // torrent file
         try {
-            if (file.createNewFile()) {
-                System.out.println("File created: " + file.getName());
+            if (torrentFile.createNewFile()) {
+                System.out.println("File created: " + torrentFile.getName());
             } else {
                 System.out.println("File already exists.");
             }
@@ -38,8 +44,30 @@ public class bitTClient {
             e.printStackTrace();
         }
 
-        // send get request to tracker to get peer list
+        // read file raw
+        InputStream input = new FileInputStream(torrentFile);
+        // parse the torrent file
+        BencodeStreamReader reader = new BencodeStreamReader(input);
+        BencodedDictionary torrentDict = new BencodedDictionary(reader);
 
+        // get values
+        // Extract 'announce' URL
+        BencodedByteSequence announce = (BencodedByteSequence) torrentDict.get("announce");
+        System.out.println("Announce URL: " + announce.getValueAsString());
+
+        // Extract 'info' dictionary
+        BencodedDictionary infoDict = (BencodedDictionary) torrentDict.get("info");
+
+        // Extract 'name' from 'info'
+        BencodedByteSequence name = (BencodedByteSequence) infoDict.get("name");
+        System.out.println("Torrent Name: " + name.getValueAsString());
+
+        // Extract 'piece length' from 'info'
+        BencodedInteger pieceLength = (BencodedInteger) infoDict.get("piece length");
+        System.out.println("Piece Length: " + pieceLength.getValue());
+
+        BencodedInteger length = (BencodedInteger) infoDict.get("length");
+        System.out.println("File Length: " + length.getValue());
         // stuff for get request
         String trackerURL;
         String infoHash;
@@ -55,9 +83,12 @@ public class bitTClient {
         long left = 0; // from the torrent file
         String event = "started";
 
+        // added the raw encoding for bittorrent
+        String encodedInfoHash = percentEncode(infoHash.getBytes(StandardCharsets.ISO_8859_1));
+        String encodedPeerID = percentEncode(peerId);
         // make request
         String urlS = String.format("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
-                trackerURL, infoHash, peerId, port, uploaded, downloaded, left, event);
+                trackerURL, encodedInfoHash, encodedPeerID, port, uploaded, downloaded, left, event);
 
         // make connection
         URL url;
@@ -66,6 +97,34 @@ public class bitTClient {
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
 
+            try (InputStream responseStream = connection.getInputStream()) {
+                BencodedDictionary trackerResponse = new BencodedDictionary(new BencodeStreamReader(responseStream));
+                System.out.println("\nTracker response:");
+
+                for (String key : trackerResponse.keySet()) {
+                    BencodedObject value = trackerResponse.get(key);
+                    System.out.println("- " + key + ": " + value);
+                }
+            }
+            // Peer logic
+            BencodedObject peersObj = trackerResponse.get("peers");
+            if (peersObj instanceof BencodedByteSequence) {
+                byte[] peersBytes = ((BencodedByteSequence) peersObj).getValue();
+
+                System.out.println("\nParsed Peers:");
+                for (int i = 0; i < peersBytes.length; i += 6) {
+                    String ip = (peersBytes[i] & 0xFF) + "." +
+                                (peersBytes[i + 1] & 0xFF) + "." +
+                                (peersBytes[i + 2] & 0xFF) + "." +
+                                (peersBytes[i + 3] & 0xFF);
+                    int port = ((peersBytes[i + 4] & 0xFF) << 8) | (peersBytes[i + 5] & 0xFF);
+                    System.out.println("- " + ip + ":" + port);
+
+                    try {
+                        //connect peer
+                    }
+                }
+            }
             // read response to get peer list and start connection with peers
             BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
             String line;
@@ -109,6 +168,15 @@ public class bitTClient {
             e.printStackTrace();
         }
 
+    }
+
+    // the peers need to be bittorrent encoded, which is raw percent encoding...
+    private static String percentEncode(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%%%02X", b));
+        }
+        return sb.toString();
     }
 
 }
