@@ -10,6 +10,7 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,7 +26,7 @@ import com.dampcake.bencode.Type;
 
 public class bitTClient {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
         // should be <torrent> <output>
         if (args.length != 2) {
             System.err.println("Usage: java BitClient <torrent-file> <output-file>");
@@ -159,13 +160,12 @@ public class bitTClient {
                 }
 
                 byte[] responseBytes = buffer.toByteArray();
-                trackerResponse = bencode.decode(responseStream, Type.DICTIONARY);
+                trackerResponse = bencode.decode(responseBytes, Type.DICTIONARY);
                 System.out.println("\nTracker response: " + trackerResponse.keySet());
             }
 
             // get the peers from tracker response
-            BencodedByteSequence peers = (BencodedByteSequence) trackerResponse.get("peers");
-            byte[] peerBytes = peers.getValue();
+            byte[] peerBytes = (byte[]) trackerResponse.get("peers");
             List<Peer> peerList = new ArrayList<>();
             
             // iterate through each peer and construct the IPv4 address
