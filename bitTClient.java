@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -13,118 +14,159 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
+import java.util.concurrent.ArrayBlockingQueue;
 
 import com.github.cdefgah.bencoder4j.*;
 
 public class bitTClient {
 
     public static void main(String[] args) {
-        // should be filename torrent toPutIn
-
+        // should be <torrent> <output>
+        if (args.length != 2) {
+            System.err.println("Usage: java BitClient <torrent-file> <output-file>");
+            return;
+        }
         // Printing the first argument
         System.out.println(args[0]); // torrent
-        System.out.println(args[1]); // where to go
+        System.out.println(args[1]); // output
 
-        // open tor file and decode
+        // create the respective files
+        File torrentFile = new File(args[0]);
+        File outputFile  = new File(args[1]);
 
         // use size from decoded file to allocate space for file
-        File torrentFile = new File(args[1]); // torrent file
         try {
-            if (torrentFile.createNewFile()) {
-                System.out.println("File created: " + torrentFile.getName());
-            } else {
-                System.out.println("File already exists.");
+            if (!outputFile.exists() && !outputFile.createNewFile()) {
+                System.err.println("Could not create output file");
+                return;
             }
-        } catch (IOException e) {
-            System.err.println("An error occurred: " + e.getMessage());
+        }   catch (IOException e) {
             e.printStackTrace();
+            return;
         }
 
         // read file raw
         InputStream input = new FileInputStream(torrentFile);
+
         // parse the torrent file
         BencodeStreamReader reader = new BencodeStreamReader(input);
         BencodedDictionary torrentDict = new BencodedDictionary(reader);
 
-        // get values
-        // Extract 'announce' URL
+
+        // extracting Information
+        // extract announce URL from torrent
         BencodedByteSequence announce = (BencodedByteSequence) torrentDict.get("announce");
         System.out.println("Announce URL: " + announce.getValueAsString());
 
-        // Extract 'info' dictionary
+        // extract info dictionary
         BencodedDictionary infoDict = (BencodedDictionary) torrentDict.get("info");
 
-        // Extract 'name' from 'info'
+        // extract name from info
         BencodedByteSequence name = (BencodedByteSequence) infoDict.get("name");
         System.out.println("Torrent Name: " + name.getValueAsString());
 
-        // Extract 'piece length' from 'info'
+        // extract pieceLength from info
         BencodedInteger pieceLength = (BencodedInteger) infoDict.get("piece length");
         System.out.println("Piece Length: " + pieceLength.getValue());
 
+        // extract length from info
         BencodedInteger length = (BencodedInteger) infoDict.get("length");
         System.out.println("File Length: " + length.getValue());
-        // stuff for get request
-        String trackerURL;
-        String infoHash;
 
-        //creating peer ID -- 20 bytes random and new for each download
+
+        // compute SHA-1 info hash
+        // get raw infodict in bytes
+        ByteArrayOutputStream infoOut = new ByteArrayOutputStream();
+        infoDict.encode(infoOut);
+
+        // hash the raw bytes
+        byte[] infoBytes = infoOut.toByteArray();
+        byte[] infoHash = MessageDigest.getInstance("SHA-1").digest(infoBytes);
+
+
+        // creating peer ID
         byte peerId[] = new byte[20];
         SecureRandom ran = new SecureRandom();
         ran.nextBytes(peerId);
 
-        int port = 6881; // common port
+        int portURL = 6881; // common port
         long uploaded = 0;
         long downloaded = 0;
-        long left = 0; // from the torrent file
+        long left = length.getValue(); // from the torrent file
         String event = "started";
 
         // added the raw encoding for bittorrent
-        String encodedInfoHash = percentEncode(infoHash.getBytes(StandardCharsets.ISO_8859_1));
+        String encodedInfoHash = percentEncode(infoHash);
         String encodedPeerID = percentEncode(peerId);
-        // make request
-        String urlS = String.format("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
-                trackerURL, encodedInfoHash, encodedPeerID, port, uploaded, downloaded, left, event);
 
-        // make connection
+        // concat the URL
+        String urlString = String.format("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
+                announce, 
+                encodedInfoHash, 
+                encodedPeerID, 
+                portURL, 
+                uploaded, 
+                downloaded, 
+                left, 
+                event
+        );
+
+        // contacting the peers
         URL url;
         try {
-            url = new URL(urlS);
+
+            // announce to the tracker with the url
+            System.out.println("Announce to tracker with URL:\n" + urlString);
+            url = new URL(urlString);
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
 
+            // digests output and print out tracker responses (- peers: <data>) etc
             try (InputStream responseStream = connection.getInputStream()) {
                 BencodedDictionary trackerResponse = new BencodedDictionary(new BencodeStreamReader(responseStream));
                 System.out.println("\nTracker response:");
-
                 for (String key : trackerResponse.keySet()) {
                     BencodedObject value = trackerResponse.get(key);
                     System.out.println("- " + key + ": " + value);
                 }
             }
-            // Peer logic
-            BencodedObject peersObj = trackerResponse.get("peers");
-            if (peersObj instanceof BencodedByteSequence) {
-                byte[] peersBytes = ((BencodedByteSequence) peersObj).getValue();
 
-                System.out.println("\nParsed Peers:");
-                for (int i = 0; i < peersBytes.length; i += 6) {
-                    String ip = (peersBytes[i] & 0xFF) + "." +
-                                (peersBytes[i + 1] & 0xFF) + "." +
-                                (peersBytes[i + 2] & 0xFF) + "." +
-                                (peersBytes[i + 3] & 0xFF);
-                    int port = ((peersBytes[i + 4] & 0xFF) << 8) | (peersBytes[i + 5] & 0xFF);
-                    System.out.println("- " + ip + ":" + port);
+            // get the peers from tracker response
+            BencodedByteSequence peers = trackerResponse.get("peers");
+            byte[] peerBytes = peers.getValue();
+            List<Peer> peerList = new ArrayList<>();
+            
+            // iterate through each peer and construct the IPv4 address
+            // increment by 6 since it's 4 bytes IP and 2 bytes port
+            for (int i = 0; i < peers.length; i += 6) {
 
-                    try {
-                        //connect peer
-                    }
-                }
+                // first 4 bytes for IP
+                String ip = String.format("%d.%d.%d.%d",
+                    peers[i]   & 0xFF,
+                    peers[i+1] & 0xFF,
+                    peers[i+2] & 0xFF,
+                    peers[i+3] & 0xFF
+                );
+
+                // last 2 bytes for port
+                int port = ((peers[i+4] & 0xFF) << 8) | (peers[i+5] & 0xFF);
+
+                // add them to the list
+                peerList.add(new Peer(ip, port));
             }
+            
+            System.out.println("Yay, we found " + peerList.size() + "peers!");
+
+            // Connect to the peers (maybe use threads?)
+
+
+
             // read response to get peer list and start connection with peers
             BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
             String line;
@@ -155,11 +197,6 @@ public class bitTClient {
                 s[i].join();
                 i++;
             }
-
-
-        
-
-
             // make connections to them with threads
 
         } catch (MalformedURLException e) {
