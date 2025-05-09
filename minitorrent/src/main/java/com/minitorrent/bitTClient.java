@@ -2,6 +2,7 @@ package com.minitorrent;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
@@ -13,6 +14,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,9 +152,12 @@ public class bitTClient {
             con.setRequestMethod("GET");
             Map<String, Object> trackerResponse;
             // digests output and print out tracker responses (- peers: <data>) etc
+
+            con.setConnectTimeout(10000);
+            con.setReadTimeout(5000);
             try (InputStream responseStream = con.getInputStream()) {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
+                System.out.println("responseStream correct");
                 byte[] data = new byte[1024];
                 int bytesRead;
                 while ((bytesRead = responseStream.read(data, 0, data.length)) != -1) {
@@ -165,12 +170,25 @@ public class bitTClient {
             }
 
             // get the peers from tracker response
-            byte[] peerBytes = (byte[]) trackerResponse.get("peers");
+            Object peersObj = trackerResponse.get("peers");
+            byte[] peerBytes = null;
             List<Peer> peerList = new ArrayList<>();
+
+            // Check if the "peers" is a byte[] or a String
+            if (peersObj instanceof byte[]) 
+            {
+                peerBytes = (byte[]) peersObj;
+            } else if (peersObj instanceof String) {
+                // If it's a string, you might need to convert it into a byte array (e.g., using UTF-8 encoding)
+                peerBytes = ((String) peersObj).getBytes(StandardCharsets.UTF_8);
+            } else {
+                System.err.println("Unexpected type for 'peers' field: " + peersObj.getClass());
+                return;
+            }
             
             // iterate through each peer and construct the IPv4 address
             // increment by 6 since it's 4 bytes IP and 2 bytes port
-            for (int i = 0; i < peerBytes.length; i += 6) {
+            for (int i = 0; i < peerBytes.length; i += 10) {
 
                 // first 4 bytes for IP
                 String ip = String.format("%d.%d.%d.%d",
@@ -187,11 +205,91 @@ public class bitTClient {
                 peerList.add(new Peer(ip, port));
             }
             
-            System.out.println("Yay, we found " + peerList.size() + "peers!");
-
+            System.out.println("Yay, we found " + peerList.size() + " peers!");
+            for (Peer peer : peerList) {
+                System.out.println(peer);
+            }
             // Connect to the peers (maybe use threads?)
 
+            Socket peerSock;
 
+            try {
+                System.out.println("Socket stuff happening");
+                Peer peer = peerList.get(0);
+                System.out.println("Trying to connect to: " + peer.getIP() + ":" + peer.getPort());
+                peerSock = new Socket();
+                peerSock.connect(new InetSocketAddress(peer.getIP(), peer.getPort()), 5000);
+                if (peerSock.isConnected()) {
+                    System.out.println("connected");
+                }
+                System.out.println("peerSock created");
+
+                // for sending and recv
+                InputStream in = peerSock.getInputStream();
+                OutputStream out = peerSock.getOutputStream();
+
+                // getting stuff for first message
+                byte plen = 19;
+                String prot = "BitTorrent protocol";
+                byte[] res = new byte[8];
+
+
+                System.out.println("Starting Handshake...");
+
+                ByteArrayOutputStream handShake = new ByteArrayOutputStream();
+                handShake.write(plen);
+                handShake.write(prot.getBytes("ISO-8859-1"));
+                handShake.write(res);
+                handShake.write(encodedInfoHash.getBytes("ISO-8859-1"));
+                handShake.write(peerId);
+
+                System.out.println("outing it trust");
+
+                out.write(handShake.toByteArray());
+
+                System.out.println("handshake done");
+
+                out.flush();
+
+                byte[] response = new byte[68]; // same size as what we sent
+                int read = 0;
+
+                while (read < 68) { // reading response which is mirror of handshake
+                    int bytesR = in.read(response, read, 68 - read);
+                    if (bytesR == -1) {
+                        System.out.println("Something went wrong");
+                        return;
+                    }
+                    read += bytesR;
+                }
+
+                // check if protocol is the same
+                int responseLen = response[0] & 0xFF;
+                String responseProt = new String(response, 1, responseLen, "ISO-8859-1");
+                if (!responseProt.equals(prot)) {
+                    System.out.println("Protocol recieved not BitTorrent protocol");
+                    return;
+                }
+
+                // check if hashes are exact match (so it's the same file)
+                byte[] hashRecieved = Arrays.copyOfRange(response, 28, 48);
+                if (!Arrays.equals(hashRecieved, infoHash)) {
+                    System.out.println("The info hashes did not match exactly");
+                    return;
+                }
+
+                // handshake was good
+                System.out.println("Handshake was good, now get data");
+                in.close();
+                out.close();
+                peerSock.close();
+            } catch (UnknownHostException e) {
+
+                e.printStackTrace();
+            } catch (IOException e) {
+
+                e.printStackTrace();
+            }
 
             // read response to get peer list and start connection with peers
             // BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
@@ -243,9 +341,26 @@ public class bitTClient {
     }
 
     static class Peer {
-        final String ip;
-        final int port;
-        Peer(String ip, int port) { this.ip = ip; this.port = port; }
+        private String ip;
+        private int port;
+
+        public Peer(String ip, int port) {
+            this.ip = ip;
+            this.port = port;
+        }
+        
+        public String getIP() {
+            return ip;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        @Override
+        public String toString() {
+            return "IP: " + ip + ", Port: " + port;
+        }
     }
 
 }
