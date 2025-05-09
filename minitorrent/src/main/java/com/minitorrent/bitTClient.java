@@ -40,7 +40,7 @@ public class bitTClient {
 
         // create the respective files
         File torrentFile = new File(args[0]);
-        File outputFile  = new File(args[1]);
+        File outputFile = new File(args[1]);
 
         byte[] torrentBytes = Files.readAllBytes(torrentFile.toPath());
 
@@ -50,7 +50,7 @@ public class bitTClient {
                 System.err.println("Could not create output file");
                 return;
             }
-        }   catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
             return;
         }
@@ -62,10 +62,10 @@ public class bitTClient {
         // BencodeStreamReader reader = new BencodeStreamReader(input);
         // BencodedDictionary torrentDict = new BencodedDictionary(reader);
 
-
         // // extracting Information
         // // extract announce URL from torrent
-        // BencodedByteSequence announce = (BencodedByteSequence) torrentDict.get("announce");
+        // BencodedByteSequence announce = (BencodedByteSequence)
+        // torrentDict.get("announce");
         // System.out.println("Announce URL: " + announce.toString());
 
         // // extract info dictionary
@@ -113,7 +113,6 @@ public class bitTClient {
         byte[] infoBytes = bencode.encode(infoDict);
         byte[] infoHash = MessageDigest.getInstance("SHA-1").digest(infoBytes);
 
-
         // creating peer ID
         byte peerId[] = new byte[20];
         SecureRandom ran = new SecureRandom();
@@ -130,16 +129,16 @@ public class bitTClient {
         String encodedPeerID = percentEncode(peerId);
 
         // concat the URL
-        String urlString = String.format("%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
-                announce.toString(), 
-                encodedInfoHash, 
-                encodedPeerID, 
-                portURL, 
-                uploaded, 
-                downloaded, 
-                left, 
-                event
-        );
+        String urlString = String.format(
+                "%s?info_hash=%s&peer_id=%s&port=%d&uploaded=%d&downloaded=%d&left=%d&event=%s",
+                announce.toString(),
+                encodedInfoHash,
+                encodedPeerID,
+                portURL,
+                uploaded,
+                downloaded,
+                left,
+                event);
 
         // contacting the peers
         URL url;
@@ -174,32 +173,19 @@ public class bitTClient {
             byte[] peerBytes = null;
             List<Peer> peerList = new ArrayList<>();
 
-            // Check if the "peers" is a byte[] or a String
-            if (peersObj instanceof byte[]) 
-            {
-                peerBytes = (byte[]) peersObj;
-            } else if (peersObj instanceof String) {
-                // If it's a string, you might need to convert it into a byte array (e.g., using UTF-8 encoding)
-                peerBytes = ((String) peersObj).getBytes(StandardCharsets.UTF_8);
-            } else {
-                System.err.println("Unexpected type for 'peers' field: " + peersObj.getClass());
-                return;
-            }
-            
             // iterate through each peer and construct the IPv4 address
             // increment by 6 since it's 4 bytes IP and 2 bytes port
             for (int i = 0; i < peerBytes.length; i += 10) {
 
                 // first 4 bytes for IP
                 String ip = String.format("%d.%d.%d.%d",
-                    peerBytes[i]   & 0xFF,
-                    peerBytes[i+1] & 0xFF,
-                    peerBytes[i+2] & 0xFF,
-                    peerBytes[i+3] & 0xFF
-                );
+                        peerBytes[i] & 0xFF,
+                        peerBytes[i + 1] & 0xFF,
+                        peerBytes[i + 2] & 0xFF,
+                        peerBytes[i + 3] & 0xFF);
 
                 // last 2 bytes for port
-                int port = ((peerBytes[i+4] & 0xFF) << 8) | (peerBytes[i+5] & 0xFF);
+                int port = ((peerBytes[i + 4] & 0xFF) << 8) | (peerBytes[i + 5] & 0xFF);
 
                 // add them to the list
                 peerList.add(new Peer(ip, port));
@@ -210,6 +196,7 @@ public class bitTClient {
                 System.out.println(peer);
             }
             // Connect to the peers (maybe use threads?)
+            // for now, just try to connect to one peer
 
             Socket peerSock;
 
@@ -292,10 +279,11 @@ public class bitTClient {
             }
 
             // read response to get peer list and start connection with peers
-            // BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
+            // BufferedReader reader = new BufferedReader(new
+            // InputStreamReader(con.getInputStream()));
             // String line;
             // while ((line = reader.readLine()) != null) {
-            //     System.out.println("line: " + line);
+            // System.out.println("line: " + line);
             // }
             // // pull out ip addrs and ports of peers from tracker (decode bencode)
             // //list of peers and their coressponding ports
@@ -308,18 +296,18 @@ public class bitTClient {
             // int i=0;
             // for(each peer)
             // {
-            //     s[i] = new Threads(peerIP, port, peerId, infoHash);
-            //     s.start();
-            //     i++;
+            // s[i] = new Threads(peerIP, port, peerId, infoHash);
+            // s.start();
+            // i++;
 
             // }
 
             // i=0;
             // for(each peer)
             // {
-            //     //join all
-            //     s[i].join();
-            //     i++;
+            // //join all
+            // s[i].join();
+            // i++;
             // }
             // // make connections to them with threads
 
