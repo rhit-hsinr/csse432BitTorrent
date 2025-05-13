@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -16,8 +17,11 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import com.github.cdefgah.bencoder4j.io.*;
@@ -175,6 +179,7 @@ public class bitTClient {
 
             // iterate through each peer and construct the IPv4 address
             // increment by 6 since it's 4 bytes IP and 2 bytes port
+            int j = 0;
             for (int i = 0; i < peerBytes.length; i += 10) {
 
                 // first 4 bytes for IP
@@ -189,8 +194,17 @@ public class bitTClient {
 
                 // add them to the list
                 peerList.add(new Peer(ip, port));
+                if (peerList.get(j).connect() == -1) {
+                    peerList.remove(j);
+                    j--;
+                    continue;
+                }
+                peerList.get(j).sendFirstMsg(encodedInfoHash, peerId);
+                // need to send msg to torrent
+                peerList.get(j).receivefirstMsg(encodedInfoHash, peerId);
+                j++;
             }
-            
+
             System.out.println("Yay, we found " + peerList.size() + " peers!");
             for (Peer peer : peerList) {
                 System.out.println(peer);
@@ -198,118 +212,16 @@ public class bitTClient {
             // Connect to the peers (maybe use threads?)
             // for now, just try to connect to one peer
 
-            Socket peerSock;
+            // unsure abt
+            LinkedList<Socket> peers = new LinkedList<Socket>();
+            addPeer toRunPeers = new addPeer(portURL, peers);
+            toRunPeers.start();
 
-            try {
-                System.out.println("Socket stuff happening");
-                Peer peer = peerList.get(0);
-                System.out.println("Trying to connect to: " + peer.getIP() + ":" + peer.getPort());
-                peerSock = new Socket();
-                peerSock.connect(new InetSocketAddress(peer.getIP(), peer.getPort()), 5000);
-                if (peerSock.isConnected()) {
-                    System.out.println("connected");
-                }
-                System.out.println("peerSock created");
-
-                // for sending and recv
-                InputStream in = peerSock.getInputStream();
-                OutputStream out = peerSock.getOutputStream();
-
-                // getting stuff for first message
-                byte plen = 19;
-                String prot = "BitTorrent protocol";
-                byte[] res = new byte[8];
-
-
-                System.out.println("Starting Handshake...");
-
-                ByteArrayOutputStream handShake = new ByteArrayOutputStream();
-                handShake.write(plen);
-                handShake.write(prot.getBytes("ISO-8859-1"));
-                handShake.write(res);
-                handShake.write(encodedInfoHash.getBytes("ISO-8859-1"));
-                handShake.write(peerId);
-
-                System.out.println("outing it trust");
-
-                out.write(handShake.toByteArray());
-
-                System.out.println("handshake done");
-
-                out.flush();
-
-                byte[] response = new byte[68]; // same size as what we sent
-                int read = 0;
-
-                while (read < 68) { // reading response which is mirror of handshake
-                    int bytesR = in.read(response, read, 68 - read);
-                    if (bytesR == -1) {
-                        System.out.println("Something went wrong");
-                        return;
-                    }
-                    read += bytesR;
-                }
-
-                // check if protocol is the same
-                int responseLen = response[0] & 0xFF;
-                String responseProt = new String(response, 1, responseLen, "ISO-8859-1");
-                if (!responseProt.equals(prot)) {
-                    System.out.println("Protocol recieved not BitTorrent protocol");
-                    return;
-                }
-
-                // check if hashes are exact match (so it's the same file)
-                byte[] hashRecieved = Arrays.copyOfRange(response, 28, 48);
-                if (!Arrays.equals(hashRecieved, infoHash)) {
-                    System.out.println("The info hashes did not match exactly");
-                    return;
-                }
-
-                // handshake was good
-                System.out.println("Handshake was good, now get data");
-                in.close();
-                out.close();
-                peerSock.close();
-            } catch (UnknownHostException e) {
-
-                e.printStackTrace();
-            } catch (IOException e) {
-
-                e.printStackTrace();
-            }
-
-            // read response to get peer list and start connection with peers
-            // BufferedReader reader = new BufferedReader(new
-            // InputStreamReader(con.getInputStream()));
-            // String line;
-            // while ((line = reader.readLine()) != null) {
-            // System.out.println("line: " + line);
-            // }
-            // // pull out ip addrs and ports of peers from tracker (decode bencode)
-            // //list of peers and their coressponding ports
             // //send 19 byte hearder with bittorrent protocol
             // //20 byte SHA with info hash
             // //20 byte peer id generated by us
             // //call thread's run to start a tcp connection with given info
             // //go through each peer in the list
-            // Threads s[];
-            // int i=0;
-            // for(each peer)
-            // {
-            // s[i] = new Threads(peerIP, port, peerId, infoHash);
-            // s.start();
-            // i++;
-
-            // }
-
-            // i=0;
-            // for(each peer)
-            // {
-            // //join all
-            // s[i].join();
-            // i++;
-            // }
-            // // make connections to them with threads
 
         } catch (MalformedURLException e) {
             e.printStackTrace();
@@ -331,18 +243,113 @@ public class bitTClient {
     static class Peer {
         private String ip;
         private int port;
+        private Socket peerSock = null;
+        private BufferedOutputStream outPeer = null;
+        private BufferedInputStream inPeer = null;
+        private readFromPeer reader = null; // for reading from peer
+        private Queue<readFromTor> forTorFile = null; // for talking to tor.. needed?
 
         public Peer(String ip, int port) {
             this.ip = ip;
             this.port = port;
         }
-        
+
         public String getIP() {
             return ip;
         }
 
         public int getPort() {
             return port;
+        }
+
+        // connecting to a peer
+        public int connect() {
+            try {
+                peerSock = new Socket(getIP(), getPort());
+                outPeer = new BufferedOutputStream(new DataOutputStream(peerSock.getOutputStream()));
+                inPeer = new BufferedInputStream(new DataInputStream(peerSock.getInputStream()));
+
+            } catch (IOException ex) {
+                System.out.println("Couldn't connect to peer " + getIP());
+                return -1;
+            }
+            return 0;
+        }
+
+        public int sendFirstMsg(String info, byte[] peerId) { // to send first msg
+            try {
+                byte[] msg = genMsg(info, peerId);
+                outPeer.write(msg, 0, msg.length);
+                outPeer.flush();
+            } catch (IOException ex) {
+                System.out.println("Could not make connection");
+                return -1;
+            }
+            return 0;
+        }
+
+        public byte[] genMsg(String info, byte[] peerId) {
+            ByteBuffer msg = ByteBuffer.allocate(68); // size of handshake = 68 bytes
+            byte pLen = 19;
+            msg.put(pLen);
+
+            try {
+                msg.put("BitTorrent protocol".getBytes("US-ASCII"));
+            } catch (UnsupportedEncodingException e) {
+
+                e.printStackTrace();
+            }
+
+            byte[] empty = new byte[8];
+            Arrays.fill(empty, (byte) 0); // set to 0
+
+            msg.put(empty);
+
+            MessageDigest md;
+            try {
+                md = MessageDigest.getInstance("SHA-1");
+                msg.put(md.digest(info.getBytes())); // need to encode
+                msg.put(peerId);
+                msg.flip();
+            } catch (NoSuchAlgorithmException e) {
+
+                e.printStackTrace();
+            }
+            return msg.array();
+
+        }
+
+        public int receivefirstMsg(String info, byte[] peerId) {
+            byte[] recvPeer = new byte[68];
+            try {
+                // read msg
+                int read = 0;
+                while (read < 68) {
+                    read += inPeer.read(recvPeer, read, 68 - read);
+                }
+            } catch (IOException ex) {
+                System.out.println("couldn't read full message");
+                return -1;
+            }
+
+            byte[] toTestMsg = genMsg(info, peerId);
+            if (toTestMsg.length != recvPeer.length) {
+                return -1;
+            }
+            // compare the two msgs minus the peer id
+            for (int i = 0; i < toTestMsg.length - 20; i++) {
+                if (toTestMsg[i] != recvPeer[i]) {
+                    System.out.println("Problem with comparing the first message for peer " + getIP());
+                    return -1;
+                }
+            }
+            // msg good
+            // start actual communication
+            this.msgQ = new LinkedList<readFromTor>(); // for communicating with tor file
+            this.reader = new readFromPeer(); // for communicating with peer
+            Thread t = new Thread(reader);
+            t.start();
+            return 0;
         }
 
         @Override
