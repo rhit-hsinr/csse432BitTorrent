@@ -214,7 +214,7 @@ public class bitTClient {
 
             // unsure abt
             LinkedList<Socket> peers = new LinkedList<Socket>();
-            addPeer toRunPeers = new addPeer(portURL, peers);
+            welcomePeers toRunPeers = new welcomePeers(portURL, peers);
             toRunPeers.start();
 
             // //send 19 byte hearder with bittorrent protocol
