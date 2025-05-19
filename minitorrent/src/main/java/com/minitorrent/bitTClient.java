@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -285,7 +286,8 @@ public class bitTClient {
 
                 System.out.println("Handshake OK with " + peer.getHost() + ":" + peer.getPort());
 
-                // TODO: from here you can send an “interested” message, read their bitfield, etc.
+                // TODO: from here you can send an “interested” message, read their bitfield,
+                // etc.
                 // e.g. peer.sendMessage(torrentMsg.genInterested());
 
                 peer.close();
