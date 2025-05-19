@@ -10,6 +10,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
+ * get next message (so that we could get message from peers and read them in client)
+ */
+
+/**
  * Represents a single BitTorrent peer connection.
  * Handles socket setup, handshake, and basic message send/receive.
  */
@@ -67,10 +71,10 @@ public class Peer {
         buf.get(pstr);
 
         // validate protocol string
-        byte[] expectedPstr = "BitTorrent protocol".getBytes(StandardCharsets.US_ASCII);
+        byte[] expectedPstr = "BitTorrent protocol".getBytes(StandardCharsets.ISO_8859_1);
         if (!Arrays.equals(pstr, expectedPstr)) {
             throw new IOException("Unexpected protocol: " +
-                    new String(pstr, StandardCharsets.US_ASCII));
+                    new String(pstr, StandardCharsets.ISO_8859_1));
         }
 
         // skip reserved bytes
@@ -93,7 +97,7 @@ public class Peer {
     private byte[] genHandshake(byte[] infoHash, byte[] peerId) {
         ByteBuffer buf = ByteBuffer.allocate(68);
         buf.put((byte)19);
-        buf.put("BitTorrent protocol".getBytes(StandardCharsets.US_ASCII));
+        buf.put("BitTorrent protocol".getBytes(StandardCharsets.ISO_8859_1));
         buf.put(new byte[8]);     // reserved
         buf.put(infoHash);        // 20-byte info_hash
         buf.put(peerId);          // 20-byte peer_id
