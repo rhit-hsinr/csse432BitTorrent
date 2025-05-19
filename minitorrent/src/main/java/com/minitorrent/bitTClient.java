@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -178,7 +179,8 @@ public class bitTClient {
 
                 System.out.println("Handshake OK with " + peer.getHost() + ":" + peer.getPort());
 
-                // TODO: from here you can send an “interested” message, read their bitfield, etc.
+                // TODO: from here you can send an “interested” message, read their bitfield,
+                // etc.
                 // e.g. peer.sendMessage(torrentMsg.genInterested());
 
                 peer.close();
@@ -274,4 +276,28 @@ public class bitTClient {
         }
         return sb.toString();
     }
+
+    public class forSendMsg {
+
+        public static void sendMsg(Peer peer, torrentMsg msg) {
+            byte[] packedMsg = msg.turnIntoBytes();
+            try {
+                peer.sendMessage(packedMsg);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            // all for us to see output
+            StringBuilder toSend = new StringBuilder();
+            toSend.append(LocalTime.now() + ": SENT " + msg.getType());
+            if (msg.getType() == torrentMsg.MsgType.REQUEST || msg.getType() == torrentMsg.MsgType.PIECE) {
+                toSend.append(" FOR " + msg.getIndex());
+
+            }
+
+            toSend.append(" TO " + peer.getHost());
+            System.out.println("being sent: " + toSend);
+        }
+    }
+
 }
