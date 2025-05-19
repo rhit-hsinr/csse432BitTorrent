@@ -277,6 +277,7 @@ public class bitTClient {
         return sb.toString();
     }
 
+    // call this to send message to a specific peer
     public class forSendMsg {
 
         public static void sendMsg(Peer peer, torrentMsg msg) {
