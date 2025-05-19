@@ -2,13 +2,8 @@ package com.minitorrent;
 
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.Socket;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -16,17 +11,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
-
-import com.github.cdefgah.bencoder4j.io.*;
-import com.github.cdefgah.bencoder4j.model.*;
-
 import com.dampcake.bencode.Bencode;
 import com.dampcake.bencode.Type;
 
@@ -151,14 +137,17 @@ public class bitTClient {
 
     // piece management
     private byte[][] pieceDataBuffers;
-    private boolean[] pieceCompleted; 
-    private int[] pieceBlockTracker;  
-    private final Object pieceLock = new Object(); 
+    private boolean[] pieceCompleted;
+    private int[] pieceBlockTracker;
+    private final Object pieceLock = new Object();
 
     // private final List<PeerSession> activePeerSessions = new ArrayList<>();
     private final List<Thread> peerThreads = new ArrayList<>();
 
-    private final Bencode bencode = new Bencode(StandardCharsets.UTF_8);
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 15_000;
+
+    private final Bencode bencode = new Bencode(StandardCharsets.US_ASCII);
     private static final int BLOCK_SIZE = 16 * 1024;
 
     public static void main(String[] args) {
@@ -215,13 +204,11 @@ public class bitTClient {
         System.out.println("Torrent Name: " + name);
 
         // extract piece length
-        Long pieceLength = (Long) infoDict.get("piece length");
-        this.pieceLengthGlobal = pieceLength;
+        this.pieceLengthGlobal = (Long) infoDict.get("piece length");
         System.out.println("Piece Length: " + pieceLengthGlobal);
 
         // extract file length
-        Long length = (Long) infoDict.get("length");
-        this.fileLengthGlobal = length;
+        this.fileLengthGlobal = (Long) infoDict.get("length");
         System.out.println("File Length: " + fileLengthGlobal);
 
         if (fileLengthGlobal == 0 || pieceLengthGlobal == 0) {
@@ -232,74 +219,86 @@ public class bitTClient {
         // create new file with file length
         try (RandomAccessFile raf = new RandomAccessFile(outputFileGlobal, "rw")) {
             raf.setLength(fileLengthGlobal);
-        }   catch (IOException e) {
+        } catch (IOException e) {
             System.err.println("Error with pre-allocation for " + outputFileGlobal);
         }
 
-        this.numPiecesGlobal = (int) ((fileLengthGlobal + pieceLengthGlobal - 1)/pieceLengthGlobal);
+        this.numPiecesGlobal = (int) ((fileLengthGlobal + pieceLengthGlobal - 1) / pieceLengthGlobal);
         this.pieceDataBuffers = new byte[numPiecesGlobal][];
         this.pieceCompleted = new boolean[numPiecesGlobal];
-        this.pieceBlockTracker = new int [numPiecesGlobal];
+        this.pieceBlockTracker = new int[numPiecesGlobal];
         System.out.println("Num pieces: " + numPiecesGlobal);
 
-        Object piecesObj = infoDict.get("pieces");
-        this.piecesHashGlobal = (byte[]) piecesObj;
+        String piecesObj = (String) infoDict.get("pieces");
+        this.piecesHashGlobal = piecesObj.getBytes(StandardCharsets.US_ASCII);
 
         // compute SHA-1 info hash
         // get raw infodict in bytes
         // hash the raw bytes
         byte[] infoBytes = bencode.encode(infoDict);
-        byte[] infoHash = MessageDigest.getInstance("SHA-1").digest(infoBytes);
-        this.infoHashGlobal = infoHash;
+        this.infoHashGlobal = MessageDigest.getInstance("SHA-1").digest(infoBytes);
 
         // creating peer ID
-        byte peerId[] = new byte[20];
+        byte[] peerId = new byte[20];
         this.peerIdGlobal = peerId;
         SecureRandom ran = new SecureRandom();
         ran.nextBytes(peerId);
 
         // tracker communication
-        List<bitTClient.Peer> peers = connectToTracker(announceUrl);
-        if (peers.isEmpty()) {
+        List<Peer> peers = null;
+
+        int retryCount = 0;
+        while (retryCount < 3) {
+            try {
+                peers = connectToTracker(announceUrl);
+                break;
+            } catch (SocketTimeoutException e) {
+                retryCount++;
+                System.err.println("Tracker timeout, retrying (" + retryCount + "/3)...");
+            } catch (IOException e) {
+                System.err.println("Tracker announce failed: " + e.getMessage());
+                return;
+            }
+        }
+
+        if (peers == null || peers.isEmpty()) {
             System.out.println("No peers found... bye bye");
             return;
         }
         System.out.println("Found " + peers.size() + " peers from tracker");
-        
+
         // peer connection and communication
         int maxConcurrent = 20;
         int connectionAttemptCount = 0;
 
-        for (bitTClient.Peer peerInfo : peers) {
-            // need to add the bitPeers in here
-        }
+        for (Peer peer : peers) {
+            System.out.println("Peer info: " + peer.getHost() + ":" + peer.getPort());
+            try {
+                // 1) Open the TCP connection with timeouts
+                peer.connect();
 
-        /* commented out for now
-        try {
-            // Connect to the peers (maybe use threads?)
-            // for now, just try to connect to one peer
+                // 2) Send our 68‑byte handshake
+                peer.sendHandshake(infoHashGlobal, peerIdGlobal);
 
-            // unsure abt
-            LinkedList<Socket> peers = new LinkedList<Socket>();
-            addPeer toRunPeers = new addPeer(portURL, peers);
-            toRunPeers.start();
+                // 3) Read & verify their handshake (throws if infoHash mismatches)
+                peer.receiveHandshake(infoHashGlobal);
 
-            // //send 19 byte hearder with bittorrent protocol
-            // //20 byte SHA with info hash
-            // //20 byte peer id generated by us
-            // //call thread's run to start a tcp connection with given info
-            // //go through each peer in the list
+                System.out.println("Handshake OK with " + peer.getHost() + ":" + peer.getPort());
 
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+                // TODO: from here you can send an “interested” message, read their bitfield, etc.
+                // e.g. peer.sendMessage(torrentMsg.genInterested());
+
+                peer.close();
+            } catch (IOException e) {
+                System.err.println("Handshake failed with "
+                        + peer.getHost() + ":" + peer.getPort() + " → " + e.getMessage());
+            }
         }
         */
 
     }
 
-    private List<bitTClient.Peer> connectToTracker(String announceUrl) throws IOException {
+    private List<Peer> connectToTracker(String announceUrl) throws IOException {
         int portURL = 6881;
         long uploaded = 0;
         long downloaded = 0;
@@ -325,10 +324,10 @@ public class bitTClient {
         URL url = new URL(trackerUrlString);
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
-        con.setConnectTimeout(10000);
-        con.setReadTimeout(15000);
+        con.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        con.setReadTimeout(READ_TIMEOUT_MS);
 
-        List<bitTClient.Peer> peerList = new ArrayList<>();
+        List<Peer> peerList = new ArrayList<>();
         int responseCode = con.getResponseCode();
 
         if (responseCode == HttpURLConnection.HTTP_OK) {
@@ -341,13 +340,14 @@ public class bitTClient {
                 }
                 byte[] responseBytes = buffer.toByteArray();
                 Map<String, Object> trackerResponse = bencode.decode(responseBytes, Type.DICTIONARY);
+                System.out.println("Tracker response: " + trackerResponse);
 
                 if (trackerResponse.containsKey("failure reason")) {
                     System.err.println("Tracker failure: " + trackerResponse.get("failure reason"));
                     return peerList;
                 }
 
-                Object peersObj = trackerResponse.get("peers");
+                String peersObj = (String) trackerResponse.get("peers");
                 peerParse(peersObj, peerList);
             }
         } else {
@@ -357,39 +357,20 @@ public class bitTClient {
         return peerList;
     }
 
-    private void peerParse(Object peersObj, List<bitTClient.Peer> peerList) {
-        if (peersObj instanceof byte[]) { // Compact peer list
-            byte[] peerBytes = (byte[]) peersObj;
-            if (peerBytes.length % 6 != 0) {
-                System.err.println("Malformed compact peer data from tracker. Length: " + peerBytes.length);
-            } else {
-                for (int i = 0; i < peerBytes.length; i += 6) {
-                    String ip = String.format("%d.%d.%d.%d",
-                            peerBytes[i] & 0xFF,
-                            peerBytes[i + 1] & 0xFF,
-                            peerBytes[i + 2] & 0xFF,
-                            peerBytes[i + 3] & 0xFF);
-                    int port = ((peerBytes[i + 4] & 0xFF) << 8) | (peerBytes[i + 5] & 0xFF);
-                    if (port > 0 && port <= 65535) {
-                        peerList.add(new bitTClient.Peer(ip, port));
-                    }
-                }
+    private void peerParse(String peersObj, List<Peer> peerList) {
+        byte[] peers = peersObj.getBytes(StandardCharsets.US_ASCII);
+        for (int i = 0; i < peers.length; i += 6) {
+            String ip = String.format("%d.%d.%d.%d",
+                    peers[i] & 0xff,
+                    peers[i + 1] & 0xff,
+                    peers[i + 2] & 0xff,
+                    peers[i + 3] & 0xff);
+            int port = (((peers[i + 4] & 0xff) << 8) | peers[i + 5] & 0xff);
+            if (port > 0) {
+                peerList.add(new Peer(ip, port));
             }
-        } else if (peersObj instanceof List) { // Non-compact peer list
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> peerDictList = (List<Map<String, Object>>) peersObj;
-            for (Map<String, Object> peerDict : peerDictList) {
-                String ip = (String) peerDict.get("ip");
-                Long portLong = (Long) peerDict.get("port");
-                // String peerId = (String) peerDict.get("peer id");
-                if (ip != null && portLong != null) {
-                    int port = portLong.intValue();
-                     if (port > 0 && port <= 65535) {
-                        peerList.add(new bitTClient.Peer(ip, port));
-                    }
-                }
-            }
-        } else if (peersObj != null) {
+        }
+        if (peersObj.isEmpty()) {
             System.err.println("Peers data from tracker ain't real " + peersObj.getClass().getName());
         }
     }
