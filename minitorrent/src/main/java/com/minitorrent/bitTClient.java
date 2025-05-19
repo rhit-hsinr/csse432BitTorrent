@@ -30,6 +30,113 @@ import com.github.cdefgah.bencoder4j.model.*;
 import com.dampcake.bencode.Bencode;
 import com.dampcake.bencode.Type;
 
+// class PeerSession {
+//     // peer data
+//     String ip;
+//     int port;
+//     Socket socket;
+//     DataInputStream inputStream;
+//     DataOutputStream outputStream;
+
+//     // peer state
+//     boolean amChoking = true;
+//     boolean amInterested = false;
+//     boolean peerChoking = true;
+//     boolean peerInterested = false;
+
+//     byte[] peerBitfield;
+
+//     // global access data
+//     private final byte[] infoHashGlobal;
+//     private final byte[] peerIdGlobal;
+//     private final long totalPieces;
+//     private final bitTClient client;
+
+//      public PeerSession(String ip, int port, byte[] infoHashGlobal, byte[] peerIdGlobal, bitTClient client) {
+//         this.ip = ip;
+//         this.port = port;
+//         this.infoHashGlobal = infoHashGlobal;
+//         this.peerIdGlobal = peerIdGlobal;
+//         this.client = client;
+//         this.totalPieces = client.getNumPiecesGlobal();
+//     }
+
+//     public boolean connectAndHandshake() {
+//         try {
+//             System.out.println("[" + Thread.currentThread().getName() + "] Connecting to peer: " + ip + ":" + port);
+//             socket = new Socket();
+//             socket.connect(new InetSocketAddress(ip, port), 10000); // 10s connect timeout
+//             socket.setSoTimeout(15000); // 15s read timeout
+//             outputStream = new DataOutputStream(socket.getOutputStream());
+//             inputStream = new DataInputStream(socket.getInputStream());
+
+//             // 1. Send Handshake
+//             ByteArrayOutputStream handshakeMsg = new ByteArrayOutputStream();
+//             handshakeMsg.write((byte) 19); // pstrlen
+//             handshakeMsg.write("BitTorrent protocol".getBytes(StandardCharsets.ISO_8859_1)); // pstr
+//             handshakeMsg.write(new byte[8]); // reserved bytes
+//             handshakeMsg.write(infoHashGlobal); // RAW info_hash
+//             handshakeMsg.write(peerIdGlobal);   // RAW peer_id
+
+//             outputStream.write(handshakeMsg.toByteArray());
+//             outputStream.flush();
+//             System.out.println("[" + Thread.currentThread().getName() + "] Sent handshake to " + ip + ":" + port);
+
+//             // 2. Receive Handshake
+//             byte[] responseHandshake = new byte[68]; // pstrlen (1) + pstr (19) + reserved (8) + info_hash (20) + peer_id (20)
+//             inputStream.readFully(responseHandshake);
+
+//             byte pstrlenReceived = responseHandshake[0];
+//             if (pstrlenReceived != 19) {
+//                 System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent invalid pstrlen: " + pstrlenReceived);
+//                 close();
+//                 return false;
+//             }
+
+//             String pstrReceived = new String(responseHandshake, 1, 19, StandardCharsets.ISO_8859_1);
+//             if (!"BitTorrent protocol".equals(pstrReceived)) {
+//                 System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent invalid pstr: " + pstrReceived);
+//                 close();
+//                 return false;
+//             }
+
+//             // byte[] reservedReceived = Arrays.copyOfRange(responseHandshake, 20, 28);
+//             byte[] infoHashReceived = Arrays.copyOfRange(responseHandshake, 28, 48);
+
+//             if (!Arrays.equals(infoHashGlobal, infoHashReceived)) {
+//                 System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent incorrect info_hash.");
+//                 close();
+//                 return false;
+//             }
+
+//             // byte[] peerIdReceived = Arrays.copyOfRange(responseHandshake, 48, 68);
+//             System.out.println("[" + Thread.currentThread().getName() + "] Handshake successful with " + ip + ":" + port);
+//             return true;
+
+//         } catch (UnknownHostException e) {
+//             System.err.println("[" + Thread.currentThread().getName() + "] Unknown host: " + ip + " - " + e.getMessage());
+//             return false;
+//         } catch (IOException e) {
+//             System.err.println("[" + Thread.currentThread().getName() + "] I/O error connecting or handshaking with " + ip + ":" + port + " - " + e.getMessage());
+//             close();
+//             return false;
+//         }
+//     }
+
+//     public void close() {
+//         try {
+//             if (inputStream != null) inputStream.close();
+//             if (outputStream != null) outputStream.close();
+//             if (socket != null && !socket.isClosed()) socket.close();
+//         } catch (IOException e) {
+//             // Log quietly
+//         }
+//         client.peerDisconnected(this);
+//         System.out.println("[" + Thread.currentThread().getName() + "] Closed connection with " + ip + ":" + port);
+//     }
+
+// }
+
 public class bitTClient {
     // global access data
     private File outputFileGlobal;
@@ -166,6 +273,8 @@ public class bitTClient {
         for (bitTClient.Peer peerInfo : peers) {
             // need to add the bitPeers in here
         }
+
+        /* commented out for now
         try {
             // Connect to the peers (maybe use threads?)
             // for now, just try to connect to one peer
@@ -186,6 +295,7 @@ public class bitTClient {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        */
 
     }
 
@@ -410,5 +520,7 @@ public class bitTClient {
             return "IP: " + ip + ", Port: " + port;
         }
     }
+
+    public int getNumPiecesGlobal() { return numPiecesGlobal; }
 
 }
