@@ -1,8 +1,0 @@
-com/minitorrent/bencode/EncodingType.class
-com/minitorrent/bencode/MainTorrentParser.class
-com/minitorrent/bencode/TorrentParser.class
-com/minitorrent/Main.class
-com/minitorrent/TorrentMaker.class
-com/minitorrent/TorrentMetadata.class
-com/minitorrent/bencode/TorrentParser$1.class
-com/minitorrent/TorrentInfo.class
