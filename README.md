@@ -28,7 +28,7 @@ TODO
 1) interested/uninterested,
 2) have,
 3) piece,
-r4) request,
+4) request,
 5) bitfield,
 6) cancel,
 7) updating interest status,
