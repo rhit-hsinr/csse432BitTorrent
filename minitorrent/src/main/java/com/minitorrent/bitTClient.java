@@ -26,9 +26,11 @@ class PeerSession {
 public class bitTClient {
     // global access data
     private File outputFileGlobal;
-    private long pieceLengthGlobal;
-    private long fileLengthGlobal;
+    private int pieceLengthGlobal;
+    private int fileLengthGlobal;
     private int numPiecesGlobal;
+
+    private boolean done = false;
 
     // global access info bytes
     private byte[] infoHashGlobal;
@@ -104,11 +106,11 @@ public class bitTClient {
         System.out.println("Torrent Name: " + name);
 
         // extract piece length
-        this.pieceLengthGlobal = (Long) infoDict.get("piece length");
+        this.pieceLengthGlobal = (int) infoDict.get("piece length");
         System.out.println("Piece Length: " + pieceLengthGlobal);
 
         // extract file length
-        this.fileLengthGlobal = (Long) infoDict.get("length");
+        this.fileLengthGlobal = (int) infoDict.get("length");
         System.out.println("File Length: " + fileLengthGlobal);
 
         if (fileLengthGlobal == 0 || pieceLengthGlobal == 0) {
@@ -231,6 +233,30 @@ public class bitTClient {
                     // necessary
                     // Thread.sleep(100);
                 }
+
+                //for sending message
+                if(!done) // requesting pieces from non-choked peers
+                {
+                        int i;
+                        if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
+                                && (i = peer.getRarePiece(pieceCompleted)) > -1 // make sure peer has piece we don't and get index
+                                && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+                        {
+
+                            int iLen = pieceLengthGlobal; // length of peice
+                            if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and does not
+                                                                                                    // divide evenly
+                            {
+                                iLen = fileLengthGlobal % pieceLengthGlobal; // set to the rest of the file
+                                // since a file won't always be split evenly at the end
+                            }
+
+                            // creating request message
+                            TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) i * pieceLengthGlobal, iLen);
+                            peer.sentRequests.add(i); // adding to the list of pieces we've asked for
+                            sendMsg(peer, req); // sending msg to peer
+                    }
+            
 
             } catch (SocketTimeoutException e) {
                 System.err.println("TIMEOUT with " + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
