@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 
 import javax.management.RuntimeErrorException;
 
-public class torrentMsg {
+public class TorrentMsg {
 
     private MsgType type;
     private int length = -1; // length of block
@@ -31,12 +31,12 @@ public class torrentMsg {
 
     // all possible msg forms
     // only msg type
-    public torrentMsg(MsgType type) {
+    public TorrentMsg(MsgType type) {
         this.type = type;
     }
 
     // block transfer msg -- type = request or cancel
-    public torrentMsg(MsgType type, int index, int begin, int length) {
+    public TorrentMsg(MsgType type, int index, int begin, int length) {
         this.type = type;
         this.index = index;
         this.begin = begin;
@@ -44,13 +44,13 @@ public class torrentMsg {
     }
 
     // for have msg
-    public torrentMsg(MsgType type, int index) {
+    public TorrentMsg(MsgType type, int index) {
         this.type = type;
         this.index = index;
     }
 
     // for transfering part of file msg type = piece
-    public torrentMsg(MsgType type, int index, int begin, byte[] chunk) {
+    public TorrentMsg(MsgType type, int index, int begin, byte[] chunk) {
         this.type = type;
         this.index = index;
         this.begin = begin;
@@ -58,7 +58,7 @@ public class torrentMsg {
     }
 
     // for bitfieled msg. where field is a bitfield of peices peer has
-    public torrentMsg(MsgType type, byte[] field) {
+    public TorrentMsg(MsgType type, byte[] field) {
         this.type = type;
         this.field = field;
     }
@@ -177,7 +177,7 @@ public class torrentMsg {
 
         } else {
             System.out.println("Message type isn't   known");
-            throw new RuntimeException("Message type problem in torrentMsg. Type was " + type);
+            throw new RuntimeException("Message type problem in TorrentMsg. Type was " + type);
         }
 
         // return byte message
@@ -185,32 +185,30 @@ public class torrentMsg {
     }
 
     // takes byte msg and turns it into a readable msg
-    public static torrentMsg turnIntoMsg(byte[] msg) {
+    public static TorrentMsg turnIntoMsg(byte[] msg) {
         ByteBuffer buf = ByteBuffer.wrap(msg);
         int len = buf.getInt();
 
-        if (len == 0) // if len = 0 it's a keep alive msg
-        {
-            return new torrentMsg(MsgType.KEEP_ALIVE);
+        // if len = 0 it's a keep alive msg 
+        if (len == 0) {
+            return new TorrentMsg(MsgType.KEEP_ALIVE);
         }
 
-        // to get id
-        byte[] idB = new byte[1];
-        buf.get(idB, 0, 1);
-        String id = new String(idB, StandardCharsets.ISO_8859_1);
+        // Read message ID as a byte instead of string
+        byte id = buf.get();
 
         // check which id it is -- status msgs only
         // choke, unchoke, interested, uninterested
         if (len == 1) {
             switch (id) {
-                case "0": // choke
-                    return new torrentMsg(MsgType.CHOKE);
-                case "1": // unchoke
-                    return new torrentMsg(MsgType.UNCHOKE);
-                case "2": // interested
-                    return new torrentMsg(MsgType.INTERESTED);
-                case "3": // uninterested
-                    return new torrentMsg(MsgType.UNINTERESTED);
+                case 0: // choke
+                    return new TorrentMsg(MsgType.CHOKE);
+                case 1: // unchoke
+                    return new TorrentMsg(MsgType.UNCHOKE);
+                case 2: // interested
+                    return new TorrentMsg(MsgType.INTERESTED);
+                case 3: // uninterested
+                    return new TorrentMsg(MsgType.UNINTERESTED);
                 default:
                     throw new RuntimeException("id of msg, len 1, was not knwon");
             }
@@ -224,34 +222,34 @@ public class torrentMsg {
         int length;
 
         switch (id) {
-            case "4": // have -- need to extract piece index
+            case 4: // have -- need to extract piece index
                 int peiceInt = buf.getInt();
-                return new torrentMsg(MsgType.HAVE, peiceInt);
+                return new TorrentMsg(MsgType.HAVE, peiceInt);
 
-            case "5": // bitfield -- need to extract bitfield len
+            case 5: // bitfield -- need to extract bitfield len
                 // but also need to extract the actual bitfield to know the pieces a peer has
                 byte[] pieces = new byte[len - 1];
-                buf.get(pieces, 0, len - 1);
-                return new torrentMsg(MsgType.BITFIELD, pieces);
+                buf.get(pieces);
+                return new TorrentMsg(MsgType.BITFIELD, pieces);
 
-            case "6": // request -- index, begin, length
+            case 6: // request -- index, begin, length
                 index = buf.getInt();
                 begin = buf.getInt();
                 length = buf.getInt();
-                return new torrentMsg(MsgType.REQUEST, index, begin, length);
+                return new TorrentMsg(MsgType.REQUEST, index, begin, length);
 
-            case "7": // piece -- index, begin, data
+            case 7: // piece -- index, begin, data
                 index = buf.getInt();
                 begin = buf.getInt();
                 byte[] data = new byte[len - 9];
                 buf.get(data, 0, len - 9);
-                return new torrentMsg(MsgType.PIECE, index, begin, data);
+                return new TorrentMsg(MsgType.PIECE, index, begin, data);
 
-            case "8": // cancel -- index, begin, length
+            case 8: // cancel -- index, begin, length
                 index = buf.getInt();
                 begin = buf.getInt();
                 length = buf.getInt();
-                return new torrentMsg(MsgType.CANCEL, index, begin, length);
+                return new TorrentMsg(MsgType.CANCEL, index, begin, length);
 
             default:
                 throw new RuntimeException("id of msg was not known");
