@@ -176,7 +176,7 @@ public class torrentMsg {
             msg.putInt(length);
 
         } else {
-            System.out.println("Message type isn't known");
+            System.out.println("Message type isn't   known");
             throw new RuntimeException("Message type problem in torrentMsg. Type was " + type);
         }
 

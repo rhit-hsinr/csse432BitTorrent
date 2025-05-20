@@ -21,109 +21,6 @@ import com.dampcake.bencode.Bencode;
 import com.dampcake.bencode.Type;
 
 class PeerSession {
-    // peer data
-    String ip;
-    int port;
-    Socket socket;
-    DataInputStream inputStream;
-    DataOutputStream outputStream;
-
-    // peer state
-    boolean amChoking = true;
-    boolean amInterested = false;
-    boolean peerChoking = true;
-    boolean peerInterested = false;
-
-    byte[] peerBitfield;
-
-    // global access data
-    private final byte[] infoHashGlobal;
-    private final byte[] peerIdGlobal;
-    private final long totalPieces;
-    private final bitTClient client;
-
-     public PeerSession(String ip, int port, byte[] infoHashGlobal, byte[] peerIdGlobal, bitTClient client) {
-        this.ip = ip;
-        this.port = port;
-        this.infoHashGlobal = infoHashGlobal;
-        this.peerIdGlobal = peerIdGlobal;
-        this.client = client;
-        this.totalPieces = client.getNumPiecesGlobal();
-    }
-
-    public boolean connectAndHandshake() {
-        try {
-            System.out.println("[" + Thread.currentThread().getName() + "] Connecting to peer: " + ip + ":" + port);
-            socket = new Socket();
-            socket.connect(new InetSocketAddress(ip, port), 10000); // 10s connect timeout
-            socket.setSoTimeout(15000); // 15s read timeout
-            outputStream = new DataOutputStream(socket.getOutputStream());
-            inputStream = new DataInputStream(socket.getInputStream());
-
-            // 1. Send Handshake
-            ByteArrayOutputStream handshakeMsg = new ByteArrayOutputStream();
-            handshakeMsg.write((byte) 19); // pstrlen
-            handshakeMsg.write("BitTorrent protocol".getBytes(StandardCharsets.ISO_8859_1)); // pstr
-            handshakeMsg.write(new byte[8]); // reserved bytes
-            handshakeMsg.write(infoHashGlobal); // RAW info_hash
-            handshakeMsg.write(peerIdGlobal);   // RAW peer_id
-
-            outputStream.write(handshakeMsg.toByteArray());
-            outputStream.flush();
-            System.out.println("[" + Thread.currentThread().getName() + "] Sent handshake to " + ip + ":" + port);
-
-            // 2. Receive Handshake
-            byte[] responseHandshake = new byte[68]; // pstrlen (1) + pstr (19) + reserved (8) + info_hash (20) + peer_id (20)
-            inputStream.readFully(responseHandshake);
-
-            byte pstrlenReceived = responseHandshake[0];
-            if (pstrlenReceived != 19) {
-                System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent invalid pstrlen: " + pstrlenReceived);
-                close();
-                return false;
-            }
-
-            String pstrReceived = new String(responseHandshake, 1, 19, StandardCharsets.ISO_8859_1);
-            if (!"BitTorrent protocol".equals(pstrReceived)) {
-                System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent invalid pstr: " + pstrReceived);
-                close();
-                return false;
-            }
-
-            // byte[] reservedReceived = Arrays.copyOfRange(responseHandshake, 20, 28);
-            byte[] infoHashReceived = Arrays.copyOfRange(responseHandshake, 28, 48);
-
-            if (!Arrays.equals(infoHashGlobal, infoHashReceived)) {
-                System.err.println("[" + Thread.currentThread().getName() + "] Peer " + ip + ":" + port + " sent incorrect info_hash.");
-                close();
-                return false;
-            }
-
-            // byte[] peerIdReceived = Arrays.copyOfRange(responseHandshake, 48, 68);
-            System.out.println("[" + Thread.currentThread().getName() + "] Handshake successful with " + ip + ":" + port);
-            return true;
-
-        } catch (UnknownHostException e) {
-            System.err.println("[" + Thread.currentThread().getName() + "] Unknown host: " + ip + " - " + e.getMessage());
-            return false;
-        } catch (IOException e) {
-            System.err.println("[" + Thread.currentThread().getName() + "] I/O error connecting or handshaking with " + ip + ":" + port + " - " + e.getMessage());
-            close();
-            return false;
-        }
-    }
-
-    public void close() {
-        try {
-            if (inputStream != null) inputStream.close();
-            if (outputStream != null) outputStream.close();
-            if (socket != null && !socket.isClosed()) socket.close();
-        } catch (IOException e) {
-            // Log quietly
-        }
-        client.peerDisconnected(this);
-        System.out.println("[" + Thread.currentThread().getName() + "] Closed connection with " + ip + ":" + port);
-    }
 
 }
 
@@ -284,22 +181,65 @@ public class bitTClient {
                 // 2) Send our 68‑byte handshake
                 peer.sendHandshake(infoHashGlobal, peerIdGlobal);
 
-                // 3) Read & verify their handshake (throws if infoHash mismatches)
-                peer.receiveHandshake(infoHashGlobal);
+                // 3) Read & verify their handshake (throws if infoHash mismatches or other issues)
+                peer.receiveHandshake(infoHashGlobal); 
 
-                System.out.println("Handshake OK with " + peer.getHost() + ":" + peer.getPort());
+                // 4) send "interested" message
+                torrentMsg interestedMsg = new torrentMsg(torrentMsg.MsgType.INTERESTED);
+                peer.sendMessage(interestedMsg.turnIntoBytes());
+                System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
 
-                // TODO: from here you can send an “interested” message, read their bitfield,
-                // etc.
-                // e.g. peer.sendMessage(torrentMsg.genInterested());
+                // 5) read messages from peer
+                int messagesToReceive = 5; // Let's try to read up to 5 messages
+                for (int i = 0; i < messagesToReceive; i++) {
+                    System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
+                                       " from " + peer.getHost() + ":" + peer.getPort() + "...");
+                    byte[] rawMessage = peer.readMessage(); // This can throw SocketTimeoutException or EOFException
+                    
+                    torrentMsg receivedMsg = torrentMsg.turnIntoMsg(rawMessage);
+                    System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
-                peer.close();
+                    // TODO: Process the received message (e.g., update peer state, request pieces if unchoked, etc.)
+                    switch (receivedMsg.getType()) {
+                        case KEEP_ALIVE:
+                            // Peer is keeping connection alive
+                            break;
+                        case CHOKE:
+                            System.out.println("   Peer is CHOKING us. Cannot request pieces yet.");
+                            // We are choked by this peer
+                            break;
+                        case UNCHOKE:
+                            System.out.println("   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
+                            // We are unchoked by this peer
+                            break;
+                        case BITFIELD:
+                            System.out.println("   Peer sent BITFIELD. Length: " + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
+                            // Store this peer's bitfield
+                            break;
+                        case HAVE:
+                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
+                            // Update this peer's piece availability
+                            break;
+                        // Other messages like PIECE would typically only arrive after we send a REQUEST.
+                        default:
+                            break;
+                    }
+                     // Add a small delay if you want to see messages spaced out, not strictly necessary
+                    // Thread.sleep(100); 
+                }
+
+            } catch (SocketTimeoutException e) {
+                System.err.println("TIMEOUT with " + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
+            } catch (EOFException e) {
+                System.err.println("EOF (Connection closed by peer) with "
+                        + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
             } catch (IOException e) {
-                System.err.println("Handshake failed with "
-                        + peer.getHost() + ":" + peer.getPort() + " → " + e.getMessage());
+                System.err.println("I/O ERROR with " + peer.getHost() + ":" + peer.getPort() + " -> " +
+                                   e.getClass().getSimpleName() + ": " + e.getMessage());
+            } finally {
+                peer.close(); // Always ensure the peer connection is closed
             }
         }
-        */
 
     }
 
