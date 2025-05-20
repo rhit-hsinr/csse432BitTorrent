@@ -190,20 +190,19 @@ public class bitTClient {
                 System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
 
                 // 5) read messages from peer
-                int messagesToReceive = 5; // Let's try to read up to 5 messages
+                int messagesToReceive = 5; 
                 for (int i = 0; i < messagesToReceive; i++) {
                     System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
                             " from " + peer.getHost() + ":" + peer.getPort() + "...");
-                    byte[] rawMessage = peer.readMessage(); // This can throw SocketTimeoutException or EOFException
+                    byte[] rawMessage = peer.readMessage(); 
 
                     torrentMsg receivedMsg = torrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
-                    // TODO: Process the received message (e.g., update peer state, request pieces
-                    // if unchoked, etc.)
                     switch (receivedMsg.getType()) {
                         case KEEP_ALIVE:
                             // Peer is keeping connection alive
+                            System.out.println("Peer send KEEP_ALIVE");
                             break;
                         case CHOKE:
                             System.out.println("   Peer is CHOKING us. Cannot request pieces yet.");
@@ -223,8 +222,8 @@ public class bitTClient {
                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
                             // Update this peer's piece availability
                             break;
-                        // Other messages like PIECE would typically only arrive after we send a
-                        // REQUEST.
+                        case INTERESTED:
+
                         default:
                             break;
                     }

@@ -225,8 +225,8 @@ public class torrentMsg {
 
         switch (id) {
             case "4": // have -- need to extract piece index
-                int peiceInt = buf.getInt();
-                return new torrentMsg(MsgType.HAVE, peiceInt);
+                int pieceInt = buf.getInt();
+                return new torrentMsg(MsgType.HAVE, pieceInt);
 
             case "5": // bitfield -- need to extract bitfield len
                 // but also need to extract the actual bitfield to know the pieces a peer has
