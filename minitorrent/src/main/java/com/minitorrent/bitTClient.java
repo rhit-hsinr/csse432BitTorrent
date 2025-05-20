@@ -192,11 +192,11 @@ public class bitTClient {
                 System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
 
                 // 5) read messages from peer
-                int messagesToReceive = 5; 
+                int messagesToReceive = 5;
                 for (int i = 0; i < messagesToReceive; i++) {
                     System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
                             " from " + peer.getHost() + ":" + peer.getPort() + "...");
-                    byte[] rawMessage = peer.readMessage(); 
+                    byte[] rawMessage = peer.readMessage();
 
                     TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
@@ -234,29 +234,32 @@ public class bitTClient {
                     // Thread.sleep(100);
                 }
 
-                //for sending message
-                if(!done) // requesting pieces from non-choked peers
+                // for sending message
+                if (!done) // requesting pieces from non-choked peers
                 {
-                        int i;
-                        if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
-                                && (i = peer.getRarePiece(pieceCompleted)) > -1 // make sure peer has piece we don't and get index
-                                && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+                    int i;
+                    if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
+                            && (i = peer.getRarePiece(pieceCompleted)) > -1 // make sure peer has piece we don't and get
+                                                                            // index
+                            && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+                    {
+
+                        int iLen = pieceLengthGlobal; // length of peice
+                        if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and
+                                                                                                  // does not
+                                                                                                  // divide evenly
                         {
+                            iLen = fileLengthGlobal % pieceLengthGlobal; // set to the rest of the file
+                            // since a file won't always be split evenly at the end
+                        }
 
-                            int iLen = pieceLengthGlobal; // length of peice
-                            if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and does not
-                                                                                                    // divide evenly
-                            {
-                                iLen = fileLengthGlobal % pieceLengthGlobal; // set to the rest of the file
-                                // since a file won't always be split evenly at the end
-                            }
-
-                            // creating request message
-                            TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) i * pieceLengthGlobal, iLen);
-                            peer.sentRequests.add(i); // adding to the list of pieces we've asked for
-                            sendMsg(peer, req); // sending msg to peer
+                        // creating request message
+                        TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) i * pieceLengthGlobal,
+                                iLen);
+                        peer.sentRequests.add(i); // adding to the list of pieces we've asked for
+                        sendMsg(peer, req); // sending msg to peer
                     }
-            
+                }
 
             } catch (SocketTimeoutException e) {
                 System.err.println("TIMEOUT with " + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
