@@ -15,7 +15,7 @@ public class soItDoesntGetDeleted {
     {
         for (Peer peer : peerList) {
             int i;
-            if (!peer.isChoked && peer.isInterested // check it is not choked and is interested
+            if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
                     && (i = peer.getRarePiece(bitfield)) > -1 // make sure peer has piece we don't and get index
                     && !peer.requests.contains(i)) // check that we haven't asked for this index already
             {
