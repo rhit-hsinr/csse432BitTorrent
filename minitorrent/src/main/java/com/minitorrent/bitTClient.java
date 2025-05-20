@@ -1,6 +1,5 @@
 package com.minitorrent;
 
-
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -181,8 +180,9 @@ public class bitTClient {
                 // 2) Send our 68‑byte handshake
                 peer.sendHandshake(infoHashGlobal, peerIdGlobal);
 
-                // 3) Read & verify their handshake (throws if infoHash mismatches or other issues)
-                peer.receiveHandshake(infoHashGlobal); 
+                // 3) Read & verify their handshake (throws if infoHash mismatches or other
+                // issues)
+                peer.receiveHandshake(infoHashGlobal);
 
                 // 4) send "interested" message
                 torrentMsg interestedMsg = new torrentMsg(torrentMsg.MsgType.INTERESTED);
@@ -193,13 +193,14 @@ public class bitTClient {
                 int messagesToReceive = 5; // Let's try to read up to 5 messages
                 for (int i = 0; i < messagesToReceive; i++) {
                     System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
-                                       " from " + peer.getHost() + ":" + peer.getPort() + "...");
+                            " from " + peer.getHost() + ":" + peer.getPort() + "...");
                     byte[] rawMessage = peer.readMessage(); // This can throw SocketTimeoutException or EOFException
-                    
+
                     torrentMsg receivedMsg = torrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
-                    // TODO: Process the received message (e.g., update peer state, request pieces if unchoked, etc.)
+                    // TODO: Process the received message (e.g., update peer state, request pieces
+                    // if unchoked, etc.)
                     switch (receivedMsg.getType()) {
                         case KEEP_ALIVE:
                             // Peer is keeping connection alive
@@ -209,23 +210,27 @@ public class bitTClient {
                             // We are choked by this peer
                             break;
                         case UNCHOKE:
-                            System.out.println("   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
+                            System.out.println(
+                                    "   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             // We are unchoked by this peer
                             break;
                         case BITFIELD:
-                            System.out.println("   Peer sent BITFIELD. Length: " + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
+                            System.out.println("   Peer sent BITFIELD. Length: "
+                                    + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
                             // Store this peer's bitfield
                             break;
                         case HAVE:
-                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
+                            System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
                             // Update this peer's piece availability
                             break;
-                        // Other messages like PIECE would typically only arrive after we send a REQUEST.
+                        // Other messages like PIECE would typically only arrive after we send a
+                        // REQUEST.
                         default:
                             break;
                     }
-                     // Add a small delay if you want to see messages spaced out, not strictly necessary
-                    // Thread.sleep(100); 
+                    // Add a small delay if you want to see messages spaced out, not strictly
+                    // necessary
+                    // Thread.sleep(100);
                 }
 
             } catch (SocketTimeoutException e) {
@@ -235,7 +240,7 @@ public class bitTClient {
                         + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
             } catch (IOException e) {
                 System.err.println("I/O ERROR with " + peer.getHost() + ":" + peer.getPort() + " -> " +
-                                   e.getClass().getSimpleName() + ": " + e.getMessage());
+                        e.getClass().getSimpleName() + ": " + e.getMessage());
             } finally {
                 peer.close(); // Always ensure the peer connection is closed
             }
@@ -329,6 +334,19 @@ public class bitTClient {
         return sb.toString();
     }
 
-    public int getNumPiecesGlobal() { return numPiecesGlobal; }
+    // this goes at bottom of bitclient
+    public static void sendMsg(Peer peer, torrentMsg msg) {
+        byte[] packedMsg = msg.turnIntoBytes();
+        try {
+            peer.sendMessage(packedMsg);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+
+    public int getNumPiecesGlobal() {
+        return numPiecesGlobal;
+    }
 
 }
