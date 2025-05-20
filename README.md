@@ -23,3 +23,13 @@ protocol (19 bytes): The actual “BitTorrent protocol” string
 reserved (8 bytes): Reserved for future extensions
 info_hash (20 bytes): A SHA1 hash of the info dictionary in the torrent file
 peer_id (20 bytes): A unique ID for the client
+
+TODO
+interested/uninterested
+have
+piece
+request
+bitfield
+cancel
+updating interest status
+request piece from peers
