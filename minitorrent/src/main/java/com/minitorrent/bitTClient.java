@@ -48,7 +48,7 @@ public class bitTClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 15_000;
 
-    private final Bencode bencode = new Bencode(StandardCharsets.US_ASCII);
+    private final Bencode bencode = new Bencode(StandardCharsets.ISO_8859_1);
     private static final int BLOCK_SIZE = 16 * 1024;
 
     public static void main(String[] args) {
@@ -131,7 +131,7 @@ public class bitTClient {
         System.out.println("Num pieces: " + numPiecesGlobal);
 
         String piecesObj = (String) infoDict.get("pieces");
-        this.piecesHashGlobal = piecesObj.getBytes(StandardCharsets.US_ASCII);
+        this.piecesHashGlobal = piecesObj.getBytes(StandardCharsets.ISO_8859_1);
 
         // compute SHA-1 info hash
         // get raw infodict in bytes
@@ -303,7 +303,7 @@ public class bitTClient {
     }
 
     private void peerParse(String peersObj, List<Peer> peerList) {
-        byte[] peers = peersObj.getBytes(StandardCharsets.US_ASCII);
+        byte[] peers = peersObj.getBytes(StandardCharsets.ISO_8859_1);
         for (int i = 0; i < peers.length; i += 6) {
             String ip = String.format("%d.%d.%d.%d",
                     peers[i] & 0xff,

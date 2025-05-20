@@ -197,7 +197,7 @@ public class torrentMsg {
         // to get id
         byte[] idB = new byte[1];
         buf.get(idB, 0, 1);
-        String id = new String(idB, StandardCharsets.US_ASCII);
+        String id = new String(idB, StandardCharsets.ISO_8859_1);
 
         // check which id it is -- status msgs only
         // choke, unchoke, interested, uninterested
