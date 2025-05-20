@@ -177,6 +177,9 @@ public class bitTClient {
                 // 1) Open the TCP connection with timeouts
                 peer.connect();
 
+                // Initialize bitfield before any message handling
+                peer.initializeBitfield(numPiecesGlobal);
+
                 // 2) Send our 68‑byte handshake
                 peer.sendHandshake(infoHashGlobal, peerIdGlobal);
 
@@ -190,11 +193,11 @@ public class bitTClient {
                 System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
 
                 // 5) read messages from peer
-                int messagesToReceive = 5; 
+                int messagesToReceive = 5;
                 for (int i = 0; i < messagesToReceive; i++) {
                     System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
                             " from " + peer.getHost() + ":" + peer.getPort() + "...");
-                    byte[] rawMessage = peer.readMessage(); 
+                    byte[] rawMessage = peer.readMessage();
 
                     TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
@@ -212,11 +215,29 @@ public class bitTClient {
                             System.out.println(
                                     "   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             // We are unchoked by this peer
+                            // Send requests for the first piece immediately after being unchoked
+                            int BLOCK_SIZE = 16 * 1024; // 16 KiB blocks
+                            int pieceIndex = 0; // Start with first piece
+                            int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
+
+                            for (int block = 0; block < numBlocks; block++) {
+                                int begin = block * BLOCK_SIZE;
+                                int length = (block == numBlocks - 1)
+                                        ? (int) (pieceLengthGlobal - (block * BLOCK_SIZE))
+                                        : BLOCK_SIZE;
+
+                                TorrentMsg requestMsg = new TorrentMsg(TorrentMsg.MsgType.REQUEST,
+                                        pieceIndex, begin, length);
+                                peer.sendMessage(requestMsg.turnIntoBytes());
+                                System.out.println("   Sent REQUEST for piece " + pieceIndex +
+                                        ", offset " + begin + ", length " + length);
+                            }
                             break;
                         case BITFIELD:
                             System.out.println("   Peer sent BITFIELD. Length: "
                                     + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
                             // Store this peer's bitfield
+                            peer.updatePeerBitfield(receivedMsg.getField());
                             break;
                         case HAVE:
                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
