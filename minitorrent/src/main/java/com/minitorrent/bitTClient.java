@@ -239,8 +239,9 @@ public class bitTClient {
                 {
                     int i;
                     if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
-                            && (i = peer.getRarePiece(pieceCompleted)) > -1 // make sure peer has piece we don't and get
-                                                                            // index
+                            && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't and
+                                                                               // get
+                                                                               // index
                             && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
                     {
 
