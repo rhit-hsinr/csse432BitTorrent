@@ -26,14 +26,14 @@ public class Peer {
     private DataOutputStream out;
 
     // Peer state
-    private boolean amChoking = true;
-    private boolean amInterested = false;
-    private boolean peerChoking = true;
-    private boolean peerInterested = false;
+    public boolean amChoking = true;
+    public boolean amInterested = false;
+    public boolean peerChoking = true;
+    public boolean peerInterested = false;
     private BitSet availablePieces;
     private long lastMessageTime;
     private int consecutiveFailures = 0;
-    private Set<Integer> outstandingRequests;
+    public Set<Integer> sentRequests;
 
     // Constants
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -48,13 +48,13 @@ public class Peer {
         this.port = port;
         this.messageQueue = new LinkedList<>();
         this.lastMessageTime = System.currentTimeMillis();
-        this.outstandingRequests = new HashSet<>();
+        this.sentRequests = new HashSet<>();
     }
 
     public void connect() throws IOException {
         socket = new Socket();
         socket.setSoTimeout(READ_TIMEOUT_MS);
-        socket.setTcpNoDelay(true);  // Disable Nagle's algorithm
+        socket.setTcpNoDelay(true); // Disable Nagle's algorithm
         socket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
         in = new DataInputStream(socket.getInputStream());
         out = new DataOutputStream(socket.getOutputStream());
@@ -175,11 +175,11 @@ public class Peer {
         System.arraycopy(payload, 0, result, 1, payload.length);
         return result;
     }
-    
+
     public void handleMessage(torrentMsg msg) {
         lastMessageTime = System.currentTimeMillis();
-        queueMessage(msg);  // Queue the message first
-                
+        queueMessage(msg); // Queue the message first
+
         switch (msg.getType()) {
             case CHOKE:
                 peerChoking = true;
@@ -209,10 +209,10 @@ public class Peer {
     }
 
     private void sendKeepAlive() throws IOException {
-        sendMessage(new byte[4]);  // 4 bytes of zeros
+        sendMessage(new byte[4]); // 4 bytes of zeros
     }
 
-       public void markFailure() {
+    public void markFailure() {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_FAILURES) {
             close();
@@ -238,15 +238,15 @@ public class Peer {
     public void sendRequest(int pieceIndex, int begin, int length) throws IOException {
         torrentMsg msg = new torrentMsg(torrentMsg.MsgType.REQUEST, pieceIndex, begin, length);
         sendMessage(msg.turnIntoBytes());
-        outstandingRequests.add(pieceIndex);
+        sentRequests.add(pieceIndex);
     }
 
     public void removeRequest(int pieceIndex) {
-        outstandingRequests.remove(pieceIndex);
+        sentRequests.remove(pieceIndex);
     }
 
-    public boolean hasOutstandingRequest(int pieceIndex) {
-        return outstandingRequests.contains(pieceIndex);
+    public boolean hasRequest(int pieceIndex) {
+        return sentRequests.contains(pieceIndex);
     }
 
     public torrentMsg getNextMessage() {
@@ -271,15 +271,33 @@ public class Peer {
             if (socket != null) {
                 socket.close();
             }
-            outstandingRequests.clear();
-        } catch (IOException ignored) {}
+            sentRequests.clear();
+        } catch (IOException ignored) {
+        }
     }
 
     // Getters
-    public String getHost() { return host; }
-    public int getPort() { return port; }
-    public BitSet getAvailablePieces() { return availablePieces; }
-    public boolean isPeerChoking() { return peerChoking; }
-    public boolean isAmInterested() { return amInterested; }
-    public long getLastMessageTime() { return lastMessageTime; }
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public BitSet getAvailablePieces() {
+        return availablePieces;
+    }
+
+    public boolean isPeerChoking() {
+        return peerChoking;
+    }
+
+    public boolean isAmInterested() {
+        return amInterested;
+    }
+
+    public long getLastMessageTime() {
+        return lastMessageTime;
+    }
 }
