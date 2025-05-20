@@ -25,11 +25,11 @@ info_hash (20 bytes): A SHA1 hash of the info dictionary in the torrent file
 peer_id (20 bytes): A unique ID for the client
 
 TODO
-interested/uninterested
-have
-piece
-request
-bitfield
-cancel
-updating interest status
-request piece from peers
+1) interested/uninterested,
+2) have,
+3) piece,
+r4) request,
+5) bitfield,
+6) cancel,
+7) updating interest status,
+8) request piece from peers
