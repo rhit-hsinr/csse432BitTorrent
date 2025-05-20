@@ -41,7 +41,7 @@ public class Peer {
     private static final int MAX_FAILURES = 3;
     private static final long KEEP_ALIVE_INTERVAL = 120_000; // 2 minutes
 
-    private Queue<torrentMsg> messageQueue;
+    private Queue<TorrentMsg> messageQueue;
 
     public Peer(String host, int port) {
         this.host = host;
@@ -138,19 +138,19 @@ public class Peer {
     }
 
     public void sendInterested() throws IOException {
-        torrentMsg msg = new torrentMsg(torrentMsg.MsgType.INTERESTED);
+        TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
         sendMessage(msg.turnIntoBytes());
         amInterested = true;
     }
 
     public void sendNotInterested() throws IOException {
-        torrentMsg msg = new torrentMsg(torrentMsg.MsgType.UNINTERESTED);
+        TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.UNINTERESTED);
         sendMessage(msg.turnIntoBytes());
         amInterested = false;
     }
 
     public void sendHave(int pieceIndex) throws IOException {
-        torrentMsg msg = new torrentMsg(torrentMsg.MsgType.HAVE, pieceIndex);
+        TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.HAVE, pieceIndex);
         sendMessage(msg.turnIntoBytes());
     }
 
@@ -160,23 +160,29 @@ public class Peer {
      * or an empty array for a keep-alive (length=0).
      */
     public byte[] readMessage() throws IOException {
-        int length = in.readInt(); // length prefix
+        // Read length prefix (4 bytes)
+        byte[] lengthBytes = new byte[4];
+        in.readFully(lengthBytes);
+        int length = ByteBuffer.wrap(lengthBytes).getInt();
+
         if (length == 0) {
-            // keep-alive has no ID nor payload
+            // keep-alive message
             return new byte[0];
         }
-        byte msgId = in.readByte(); // message ID
-        byte[] payload = new byte[length - 1];
-        in.readFully(payload);
 
-        // combine ID + payload for return
-        byte[] result = new byte[length];
-        result[0] = msgId;
-        System.arraycopy(payload, 0, result, 1, payload.length);
-        return result;
+        // Read message ID and payload
+        byte[] message = new byte[length];
+        in.readFully(message);
+
+        // Combine length prefix and message for consistent parsing
+        byte[] fullMessage = new byte[4 + length];
+        System.arraycopy(lengthBytes, 0, fullMessage, 0, 4);
+        System.arraycopy(message, 0, fullMessage, 4, length);
+        
+        return fullMessage;
     }
     
-    public void handleMessage(torrentMsg msg) {
+    public void handleMessage(TorrentMsg msg) {
         lastMessageTime = System.currentTimeMillis();
         queueMessage(msg);  // Queue the message first
                 
@@ -236,7 +242,7 @@ public class Peer {
     }
 
     public void sendRequest(int pieceIndex, int begin, int length) throws IOException {
-        torrentMsg msg = new torrentMsg(torrentMsg.MsgType.REQUEST, pieceIndex, begin, length);
+        TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.REQUEST, pieceIndex, begin, length);
         sendMessage(msg.turnIntoBytes());
         outstandingRequests.add(pieceIndex);
     }
@@ -249,7 +255,7 @@ public class Peer {
         return outstandingRequests.contains(pieceIndex);
     }
 
-    public torrentMsg getNextMessage() {
+    public TorrentMsg getNextMessage() {
         if (messageQueue == null) {
             return null;
         }
@@ -258,7 +264,7 @@ public class Peer {
         }
     }
 
-    public void queueMessage(torrentMsg msg) {
+    public void queueMessage(TorrentMsg msg) {
         if (messageQueue != null) {
             synchronized (messageQueue) {
                 messageQueue.offer(msg);

@@ -185,7 +185,7 @@ public class bitTClient {
                 peer.receiveHandshake(infoHashGlobal);
 
                 // 4) send "interested" message
-                torrentMsg interestedMsg = new torrentMsg(torrentMsg.MsgType.INTERESTED);
+                TorrentMsg interestedMsg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
                 peer.sendMessage(interestedMsg.turnIntoBytes());
                 System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
 
@@ -196,7 +196,7 @@ public class bitTClient {
                             " from " + peer.getHost() + ":" + peer.getPort() + "...");
                     byte[] rawMessage = peer.readMessage(); // This can throw SocketTimeoutException or EOFException
 
-                    torrentMsg receivedMsg = torrentMsg.turnIntoMsg(rawMessage);
+                    TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
                     // TODO: Process the received message (e.g., update peer state, request pieces
@@ -335,7 +335,7 @@ public class bitTClient {
     }
 
     // this goes at bottom of bitclient
-    public static void sendMsg(Peer peer, torrentMsg msg) {
+    public static void sendMsg(Peer peer, TorrentMsg msg) {
         byte[] packedMsg = msg.turnIntoBytes();
         try {
             peer.sendMessage(packedMsg);

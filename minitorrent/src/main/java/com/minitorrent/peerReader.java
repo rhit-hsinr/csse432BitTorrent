@@ -10,9 +10,9 @@ public class peerReader implements Runnable {
 
     private int TOTALHELD = 10; // only keep ten messages
     private InputStream peerInput = null;
-    private Queue<torrentMsg> allMgs = null;
+    private Queue<TorrentMsg> allMgs = null;
 
-    public peerReader(InputStream is, Queue<torrentMsg> allMsgs) {
+    public peerReader(InputStream is, Queue<TorrentMsg> allMsgs) {
         this.peerInput = is;
         this.allMgs = allMsgs;
     }
@@ -59,7 +59,7 @@ public class peerReader implements Runnable {
         }
 
         // turn into readble form
-        torrentMsg toHandle = torrentMsg.turnIntoMsg(rest);
+        TorrentMsg toHandle = TorrentMsg.turnIntoMsg(rest);
 
         // add to queue
         synchronized (allMgs) { // bc of threads. Like a lock
