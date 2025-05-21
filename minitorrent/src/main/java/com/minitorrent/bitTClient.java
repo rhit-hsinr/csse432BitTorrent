@@ -212,12 +212,14 @@ public class bitTClient {
                         case CHOKE:
                             System.out.println("   Peer is CHOKING us. Cannot request pieces yet.");
                             // We are choked by this peer
+                            peer.amChoking = true;
                             break;
                         case UNCHOKE:
                             System.out.println(
                                     "   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             // We are unchoked by this peer
                             // Send requests for the first piece immediately after being unchoked
+                            peer.amChoking = false;
                             int pieceIndex = 0; // Start with first piece
                             int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
 
@@ -240,7 +242,7 @@ public class bitTClient {
                             // Store this peer's bitfield
                             peer.updatePeerBitfield(receivedMsg.getField());
                             break;
-                        case HAVE:
+                        case HAVE: // NOT DONE
                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
                             // Update this peer's piece availability
                             break;
@@ -287,11 +289,18 @@ public class bitTClient {
                             System.out.println("   Peer is INTERESTED in our pieces.");
                             peer.peerInterested = true; // Mark that this peer is interested
 
+                            // request, uninterested
+
                             // Optionally, unchoke the peer so they can request pieces from us
                             TorrentMsg unchokeMsg = new TorrentMsg(TorrentMsg.MsgType.UNCHOKE);
                             peer.sendMessage(unchokeMsg.turnIntoBytes());
                             System.out.println("   Sent UNCHOKE to " + peer.getHost() + ":" + peer.getPort());
                             break;
+
+                        case UNINTERESTED:
+                            peer.peerInterested = false;
+                            break;
+
                         default:
                             break;
                     }
