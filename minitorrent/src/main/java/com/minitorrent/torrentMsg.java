@@ -1,9 +1,6 @@
 package com.minitorrent;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
-import javax.management.RuntimeErrorException;
 
 public class TorrentMsg {
 

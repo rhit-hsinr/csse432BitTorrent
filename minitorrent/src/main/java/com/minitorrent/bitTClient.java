@@ -216,7 +216,6 @@ public class bitTClient {
                                     "   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             // We are unchoked by this peer
                             // Send requests for the first piece immediately after being unchoked
-                            int BLOCK_SIZE = 16 * 1024; // 16 KiB blocks
                             int pieceIndex = 0; // Start with first piece
                             int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
 
@@ -242,6 +241,45 @@ public class bitTClient {
                         case HAVE:
                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
                             // Update this peer's piece availability
+                            break;
+                        case PIECE:
+                            System.out.println("   Received PIECE message. Index: " + receivedMsg.getIndex() +
+                                    ", Begin: " + receivedMsg.getBegin() +
+                                    ", Length: " + receivedMsg.getChunk().length);
+
+                            // Store the piece data
+                            pieceIndex = receivedMsg.getIndex();
+                            int begin = receivedMsg.getBegin();
+                            byte[] data = receivedMsg.getChunk();
+
+                            synchronized (pieceLock) {
+                                // Initialize buffer if needed
+                                if (pieceDataBuffers[pieceIndex] == null) {
+                                    // Use actual piece length for last piece
+                                    int thisPieceLength = pieceIndex == numPiecesGlobal - 1
+                                            ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
+                                            : (int) pieceLengthGlobal;
+                                    pieceDataBuffers[pieceIndex] = new byte[thisPieceLength];
+                                }
+
+                                // Copy block data to piece buffer
+                                System.arraycopy(data, 0, pieceDataBuffers[pieceIndex], begin, data.length);
+
+                                // Update block tracker
+                                pieceBlockTracker[pieceIndex]++;
+
+                                // Calculate expected blocks for this piece
+                                int thisPieceLength = pieceIndex == numPiecesGlobal - 1
+                                        ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
+                                        : (int) pieceLengthGlobal;
+                                int expectedBlocks = (int) Math.ceil((double) thisPieceLength / BLOCK_SIZE);
+
+                                // Check if piece is complete
+                                if (pieceBlockTracker[pieceIndex] == expectedBlocks) {
+                                    verifyAndSavePiece(pieceIndex);
+                                    // Exit after successfully saving one piece
+                                }
+                            }
                             break;
                         case INTERESTED:
 
@@ -342,6 +380,29 @@ public class bitTClient {
         }
         if (peersObj.isEmpty()) {
             System.err.println("Peers data from tracker ain't real " + peersObj.getClass().getName());
+        }
+    }
+
+    private void verifyAndSavePiece(int pieceIndex) throws IOException, NoSuchAlgorithmException {
+        byte[] pieceData = pieceDataBuffers[pieceIndex];
+        byte[] actualHash = MessageDigest.getInstance("SHA-1").digest(pieceData);
+
+        // Get expected hash from torrent file
+        byte[] expectedHash = new byte[20];
+        System.arraycopy(piecesHashGlobal, pieceIndex * 20, expectedHash, 0, 20);
+
+        if (Arrays.equals(actualHash, expectedHash)) {
+            System.out.println("   Piece " + pieceIndex + " completed and verified!");
+            pieceCompleted[pieceIndex] = true;
+
+            // Write piece to file
+            try (RandomAccessFile file = new RandomAccessFile(outputFileGlobal, "rw")) {
+                file.seek(pieceIndex * pieceLengthGlobal);
+                file.write(pieceData);
+            }
+            System.out.println("   Successfully saved piece " + pieceIndex + " to disk");
+        } else {
+            System.out.println("   Piece " + pieceIndex + " verification failed!");
         }
     }
 
