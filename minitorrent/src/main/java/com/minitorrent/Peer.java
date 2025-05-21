@@ -35,6 +35,7 @@ public class Peer {
     private long lastMessageTime;
     private int consecutiveFailures = 0;
     public Set<Integer> sentRequests;
+    private peerReader reader = null;
 
     // Constants
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -114,6 +115,10 @@ public class Peer {
 
         System.out.println("Received handshake from " + host + ":" + port);
         // optionally read the remote peer_id: buf.get(new byte[20]);
+        this.messageQueue = new LinkedList<TorrentMsg>();
+        this.reader = new peerReader(in, messageQueue);
+        Thread t = new Thread(reader);
+        t.start();
     }
 
     /**
@@ -296,6 +301,9 @@ public class Peer {
     }
 
     public void close() {
+        if (reader != null) {
+            reader.endThread();
+        }
         try {
             if (socket != null) {
                 socket.close();
