@@ -301,6 +301,9 @@ public class Peer {
     }
 
     public void close() {
+        if (reader != null) {
+            reader.endThread();
+        }
         try {
             if (socket != null) {
                 socket.close();
