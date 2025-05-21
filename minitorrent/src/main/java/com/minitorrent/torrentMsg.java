@@ -186,7 +186,7 @@ public class TorrentMsg {
         ByteBuffer buf = ByteBuffer.wrap(msg);
         int len = buf.getInt();
 
-        // if len = 0 it's a keep alive msg 
+        // if len = 0 it's a keep alive msg
         if (len == 0) {
             return new TorrentMsg(MsgType.KEEP_ALIVE);
         }
