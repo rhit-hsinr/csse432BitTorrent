@@ -284,7 +284,14 @@ public class bitTClient {
                             }
                             break;
                         case INTERESTED:
+                            System.out.println("   Peer is INTERESTED in our pieces.");
+                            peer.peerInterested = true; // Mark that this peer is interested
 
+                            // Optionally, unchoke the peer so they can request pieces from us
+                            TorrentMsg unchokeMsg = new TorrentMsg(TorrentMsg.MsgType.UNCHOKE);
+                            peer.sendMessage(unchokeMsg.turnIntoBytes());
+                            System.out.println("   Sent UNCHOKE to " + peer.getHost() + ":" + peer.getPort());
+                            break;
                         default:
                             break;
                     }
