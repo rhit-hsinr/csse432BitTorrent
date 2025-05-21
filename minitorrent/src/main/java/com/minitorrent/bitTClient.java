@@ -4,14 +4,11 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.SocketTimeoutException;
-import java.net.Socket;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,8 +23,8 @@ class PeerSession {
 public class bitTClient {
     // global access data
     private File outputFileGlobal;
-    private int pieceLengthGlobal;
-    private int fileLengthGlobal;
+    private long pieceLengthGlobal;
+    private long fileLengthGlobal;
     private int numPiecesGlobal;
 
     private boolean done = false;
@@ -106,12 +103,13 @@ public class bitTClient {
         System.out.println("Torrent Name: " + name);
 
         // extract piece length
-        this.pieceLengthGlobal = (int) infoDict.get("piece length");
+        this.pieceLengthGlobal = ((Long) infoDict.get("piece length")).longValue();
         System.out.println("Piece Length: " + pieceLengthGlobal);
 
         // extract file length
-        this.fileLengthGlobal = (int) infoDict.get("length");
+        this.fileLengthGlobal = ((Long) infoDict.get("length")).longValue();
         System.out.println("File Length: " + fileLengthGlobal);
+        
 
         if (fileLengthGlobal == 0 || pieceLengthGlobal == 0) {
             System.err.println("You have nothing in your file gng");
@@ -190,10 +188,7 @@ public class bitTClient {
                 peer.receiveHandshake(infoHashGlobal);
 
                 // 4) send "interested" message
-                TorrentMsg interestedMsg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
-                peer.sendMessage(interestedMsg.turnIntoBytes());
-                System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
-
+                peer.sendInterested();
                 // 5) read messages from peer
                 int messagesToReceive = 5;
                 for (int i = 0; i < messagesToReceive; i++) {
@@ -212,14 +207,12 @@ public class bitTClient {
                         case CHOKE:
                             System.out.println("   Peer is CHOKING us. Cannot request pieces yet.");
                             // We are choked by this peer
-                            peer.amChoking = true;
                             break;
                         case UNCHOKE:
                             System.out.println(
                                     "   Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             // We are unchoked by this peer
                             // Send requests for the first piece immediately after being unchoked
-                            peer.amChoking = false;
                             int pieceIndex = 0; // Start with first piece
                             int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
 
@@ -242,7 +235,7 @@ public class bitTClient {
                             // Store this peer's bitfield
                             peer.updatePeerBitfield(receivedMsg.getField());
                             break;
-                        case HAVE: // NOT DONE
+                        case HAVE:
                             System.out.println("   Peer HAS piece index: " + receivedMsg.getIndex());
                             // Update this peer's piece availability
                             break;
@@ -289,31 +282,17 @@ public class bitTClient {
                             System.out.println("   Peer is INTERESTED in our pieces.");
                             peer.peerInterested = true; // Mark that this peer is interested
 
-                            // request, uninterested
-
                             // Optionally, unchoke the peer so they can request pieces from us
                             TorrentMsg unchokeMsg = new TorrentMsg(TorrentMsg.MsgType.UNCHOKE);
                             peer.sendMessage(unchokeMsg.turnIntoBytes());
                             System.out.println("   Sent UNCHOKE to " + peer.getHost() + ":" + peer.getPort());
                             break;
-
-                        case UNINTERESTED:
-                            peer.peerInterested = false;
-                            break;
-
                         default:
                             break;
                     }
                     // Add a small delay if you want to see messages spaced out, not strictly
                     // necessary
                     // Thread.sleep(100);
-                }
-
-                // for updating our interest with each peer
-                if (!peer.amInterested && peer.getPiecePeerHas(pieceCompleted) > -1) {
-                    peer.amInterested = true;
-                    TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
-                    sendMsg(peer, msg);
                 }
 
                 // for sending message
@@ -327,17 +306,17 @@ public class bitTClient {
                             && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
                     {
 
-                        int iLen = pieceLengthGlobal; // length of peice
+                        int iLen = (int)pieceLengthGlobal; // length of peice
                         if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and
                                                                                                   // does not
                                                                                                   // divide evenly
                         {
-                            iLen = fileLengthGlobal % pieceLengthGlobal; // set to the rest of the file
+                            iLen = (int)(fileLengthGlobal % pieceLengthGlobal);// set to the rest of the file
                             // since a file won't always be split evenly at the end
                         }
 
                         // creating request message
-                        TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) i * pieceLengthGlobal,
+                        TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) (i * pieceLengthGlobal),
                                 iLen);
                         peer.sentRequests.add(i); // adding to the list of pieces we've asked for
                         sendMsg(peer, req); // sending msg to peer
