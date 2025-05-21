@@ -43,7 +43,6 @@ public class bitTClient {
     private final Object pieceLock = new Object();
     private byte[] localBitfield = null;
     private static RandomAccessFile file = null;
-    private static boolean isSeeder = false;
 
     // private final List<PeerSession> activePeerSessions = new ArrayList<>();
     private final List<Thread> peerThreads = new ArrayList<>();
@@ -221,7 +220,7 @@ public class bitTClient {
                             peer.peerChoking = false;
                             // We are unchoked by this peer
                             // Send requests for the first piece immediately after being unchoked
-                            int pieceIndex = 0; // Start with first piece
+                            int pieceCount = 0; // Start with first piece
                             int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
 
                             for (int block = 0; block < numBlocks; block++) {
@@ -231,9 +230,9 @@ public class bitTClient {
                                         : BLOCK_SIZE;
 
                                 TorrentMsg requestMsg = new TorrentMsg(TorrentMsg.MsgType.REQUEST,
-                                        pieceIndex, begin, length);
+                                        pieceCount, begin, length);
                                 peer.sendMessage(requestMsg.turnIntoBytes());
-                                System.out.println("   Sent REQUEST for piece " + pieceIndex +
+                                System.out.println("   Sent REQUEST for piece " + pieceCount +
                                         ", offset " + begin + ", length " + length);
                             }
                             break;
@@ -333,26 +332,26 @@ public class bitTClient {
                             }
                             sendMsg(peer, reply);
                             break;
-                        case PIECE:
-                            if (hasPiece(localBitfield, pieceIndex)) {
-                                System.out.println("We are already have this piece");
-                                continue;
-                            }
-                            try {
-                                file.seek(receivedMsg.getBegin());
-                                file.write(receivedMsg.getChunk());
-                            } catch (Exception ex) {
-                                ex.printStackTrace();
-                            }
-                            setPiece(localBitfield, pieceIndex);
-                            TorrentMsg haveMsg = new TorrentMsg(TorrentMsg.MsgType.HAVE, pieceIndex);
-                            for (Peer p : peers) {
-                                sendMsg(p, haveMsg);
-                            }
-                            if (isAllTrue(localBitfield)) {
-                                isSeeder = true;
-                            }
-                            break;
+                        // case PIECE:
+                        //     if (hasPiece(localBitfield, pieceIndex)) {
+                        //         System.out.println("We are already have this piece");
+                        //         continue;
+                        //     }
+                        //     try {
+                        //         file.seek(receivedMsg.getBegin());
+                        //         file.write(receivedMsg.getChunk());
+                        //     } catch (Exception ex) {
+                        //         ex.printStackTrace();
+                        //     }
+                        //     setPiece(localBitfield, pieceIndex);
+                        //     TorrentMsg haveMsg = new TorrentMsg(TorrentMsg.MsgType.HAVE, pieceIndex);
+                        //     for (Peer p : peers) {
+                        //         sendMsg(p, haveMsg);
+                        //     }
+                        //     if (isAllTrue(localBitfield)) {
+                        //         done = true;
+                        //     }
+                        //     break;
                         case CANCEL:
                             break;
                         default:
