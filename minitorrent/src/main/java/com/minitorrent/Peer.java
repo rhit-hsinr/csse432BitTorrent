@@ -35,11 +35,15 @@ public class Peer {
     private int consecutiveFailures = 0;
     public Set<Integer> sentRequests;
 
+    public byte[] remoteBitfield = null;
+
     // Constants
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 15_000;
     private static final int MAX_FAILURES = 3;
     private static final long KEEP_ALIVE_INTERVAL = 120_000; // 2 minutes
+
+
 
     private Queue<TorrentMsg> messageQueue;
 
@@ -70,6 +74,10 @@ public class Peer {
                 availablePieces.set(i);
             }
         }
+    }
+
+    public void setPeerBitfield(int index) {
+        availablePieces.set(index);
     }
 
     /**
