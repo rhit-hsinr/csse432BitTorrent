@@ -12,6 +12,7 @@ import java.util.BitSet;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
 
 /**
@@ -34,6 +35,7 @@ public class Peer {
     private long lastMessageTime;
     private int consecutiveFailures = 0;
     public Set<Integer> sentRequests;
+    private peerReader reader = null;
 
     public byte[] remoteBitfield = null;
 
@@ -121,6 +123,10 @@ public class Peer {
 
         System.out.println("Received handshake from " + host + ":" + port);
         // optionally read the remote peer_id: buf.get(new byte[20]);
+        this.messageQueue = new LinkedList<TorrentMsg>();
+        this.reader = new peerReader(in, messageQueue);
+        Thread t = new Thread(reader);
+        t.start();
     }
 
     /**
@@ -186,10 +192,10 @@ public class Peer {
         byte[] fullMessage = new byte[4 + length];
         System.arraycopy(lengthBytes, 0, fullMessage, 0, 4);
         System.arraycopy(message, 0, fullMessage, 4, length);
-        
+
         return fullMessage;
     }
-    
+
     public void handleMessage(TorrentMsg msg) {
         lastMessageTime = System.currentTimeMillis();
         queueMessage(msg); // Queue the message first
@@ -280,7 +286,32 @@ public class Peer {
         }
     }
 
+    public int getPiecePeerHas(boolean[] alreadyHas) {
+        if (alreadyHas == null || availablePieces == null) {
+            return -1;
+        }
+
+        int[] neededPieces = new int[alreadyHas.length];
+        int j = 0;
+        for (int i = 0; i < alreadyHas.length; i++) {
+            if (!alreadyHas[i] && availablePieces.get(i)) { // client doesn't have, peer does
+                neededPieces[j] = i; // add to list of needed pieces
+                j++;
+            }
+        }
+        if (j == 0) { // if not pieces client doesn't have that peers does
+            return -1;
+        }
+
+        // pick piece at random
+        Random r = new Random(System.currentTimeMillis());
+        return neededPieces[r.nextInt(j)];
+    }
+
     public void close() {
+        if (reader != null) {
+            reader.endThread();
+        }
         try {
             if (socket != null) {
                 socket.close();

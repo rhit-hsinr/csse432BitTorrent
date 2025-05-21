@@ -4,14 +4,11 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.SocketTimeoutException;
-import java.net.Socket;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +28,8 @@ public class bitTClient {
     private long pieceLengthGlobal;
     private long fileLengthGlobal;
     private int numPiecesGlobal;
+
+    private boolean done = false;
 
     // global access info bytes
     private byte[] infoHashGlobal;
@@ -109,12 +108,13 @@ public class bitTClient {
         System.out.println("Torrent Name: " + name);
 
         // extract piece length
-        this.pieceLengthGlobal = (Long) infoDict.get("piece length");
+        this.pieceLengthGlobal = ((Long) infoDict.get("piece length")).longValue();
         System.out.println("Piece Length: " + pieceLengthGlobal);
 
         // extract file length
-        this.fileLengthGlobal = (Long) infoDict.get("length");
+        this.fileLengthGlobal = ((Long) infoDict.get("length")).longValue();
         System.out.println("File Length: " + fileLengthGlobal);
+        
 
         if (fileLengthGlobal == 0 || pieceLengthGlobal == 0) {
             System.err.println("You have nothing in your file gng");
@@ -182,6 +182,9 @@ public class bitTClient {
                 // 1) Open the TCP connection with timeouts
                 peer.connect();
 
+                // Initialize bitfield before any message handling
+                peer.initializeBitfield(numPiecesGlobal);
+
                 // 2) Send our 68‑byte handshake
                 peer.sendHandshake(infoHashGlobal, peerIdGlobal);
 
@@ -190,16 +193,13 @@ public class bitTClient {
                 peer.receiveHandshake(infoHashGlobal);
 
                 // 4) send "interested" message
-                TorrentMsg interestedMsg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
-                peer.sendMessage(interestedMsg.turnIntoBytes());
-                System.out.println("SENT to " + peer.getHost() + ":" + peer.getPort() + ": " + interestedMsg);
-
+                peer.sendInterested();
                 // 5) read messages from peer
-                int messagesToReceive = 5; 
+                int messagesToReceive = 5;
                 for (int i = 0; i < messagesToReceive; i++) {
                     System.out.println("Waiting for message " + (i + 1) + "/" + messagesToReceive +
                             " from " + peer.getHost() + ":" + peer.getPort() + "...");
-                    byte[] rawMessage = peer.readMessage(); 
+                    byte[] rawMessage = peer.readMessage();
 
                     TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
@@ -220,12 +220,29 @@ public class bitTClient {
                             System.out.println("Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
                             peer.peerChoking = false;
                             // We are unchoked by this peer
+                            // Send requests for the first piece immediately after being unchoked
+                            int pieceIndex = 0; // Start with first piece
+                            int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
+
+                            for (int block = 0; block < numBlocks; block++) {
+                                int begin = block * BLOCK_SIZE;
+                                int length = (block == numBlocks - 1)
+                                        ? (int) (pieceLengthGlobal - (block * BLOCK_SIZE))
+                                        : BLOCK_SIZE;
+
+                                TorrentMsg requestMsg = new TorrentMsg(TorrentMsg.MsgType.REQUEST,
+                                        pieceIndex, begin, length);
+                                peer.sendMessage(requestMsg.turnIntoBytes());
+                                System.out.println("   Sent REQUEST for piece " + pieceIndex +
+                                        ", offset " + begin + ", length " + length);
+                            }
                             break;
                         case BITFIELD:
                             System.out.println("Peer sent BITFIELD. Length: "
                                     + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
                             peer.updatePeerBitfield(receivedMsg.getField());
                             // Store this peer's bitfield
+                            peer.updatePeerBitfield(receivedMsg.getField());
                             break;
                         case HAVE:
                             System.out.println("Peer HAS piece index: " + receivedMsg.getIndex());
@@ -241,6 +258,45 @@ public class bitTClient {
                                 }
                             }
                             // Update this peer's piece availability
+                            break;
+                        case PIECE:
+                            System.out.println("   Received PIECE message. Index: " + receivedMsg.getIndex() +
+                                    ", Begin: " + receivedMsg.getBegin() +
+                                    ", Length: " + receivedMsg.getChunk().length);
+
+                            // Store the piece data
+                            pieceIndex = receivedMsg.getIndex();
+                            int begin = receivedMsg.getBegin();
+                            byte[] data = receivedMsg.getChunk();
+
+                            synchronized (pieceLock) {
+                                // Initialize buffer if needed
+                                if (pieceDataBuffers[pieceIndex] == null) {
+                                    // Use actual piece length for last piece
+                                    int thisPieceLength = pieceIndex == numPiecesGlobal - 1
+                                            ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
+                                            : (int) pieceLengthGlobal;
+                                    pieceDataBuffers[pieceIndex] = new byte[thisPieceLength];
+                                }
+
+                                // Copy block data to piece buffer
+                                System.arraycopy(data, 0, pieceDataBuffers[pieceIndex], begin, data.length);
+
+                                // Update block tracker
+                                pieceBlockTracker[pieceIndex]++;
+
+                                // Calculate expected blocks for this piece
+                                int thisPieceLength = pieceIndex == numPiecesGlobal - 1
+                                        ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
+                                        : (int) pieceLengthGlobal;
+                                int expectedBlocks = (int) Math.ceil((double) thisPieceLength / BLOCK_SIZE);
+
+                                // Check if piece is complete
+                                if (pieceBlockTracker[pieceIndex] == expectedBlocks) {
+                                    verifyAndSavePiece(pieceIndex);
+                                    // Exit after successfully saving one piece
+                                }
+                            }
                             break;
                         case INTERESTED:
                             peer.peerInterested = true;
@@ -305,6 +361,34 @@ public class bitTClient {
                     // Add a small delay if you want to see messages spaced out, not strictly
                     // necessary
                     // Thread.sleep(100);
+                }
+
+                // for sending message
+                if (!done) // requesting pieces from non-choked peers
+                {
+                    int i;
+                    if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
+                            && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't and
+                                                                               // get
+                                                                               // index
+                            && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+                    {
+
+                        int iLen = (int)pieceLengthGlobal; // length of peice
+                        if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and
+                                                                                                  // does not
+                                                                                                  // divide evenly
+                        {
+                            iLen = (int)(fileLengthGlobal % pieceLengthGlobal);// set to the rest of the file
+                            // since a file won't always be split evenly at the end
+                        }
+
+                        // creating request message
+                        TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) (i * pieceLengthGlobal),
+                                iLen);
+                        peer.sentRequests.add(i); // adding to the list of pieces we've asked for
+                        sendMsg(peer, req); // sending msg to peer
+                    }
                 }
 
             } catch (SocketTimeoutException e) {
@@ -396,6 +480,29 @@ public class bitTClient {
         }
         if (peersObj.isEmpty()) {
             System.err.println("Peers data from tracker ain't real " + peersObj.getClass().getName());
+        }
+    }
+
+    private void verifyAndSavePiece(int pieceIndex) throws IOException, NoSuchAlgorithmException {
+        byte[] pieceData = pieceDataBuffers[pieceIndex];
+        byte[] actualHash = MessageDigest.getInstance("SHA-1").digest(pieceData);
+
+        // Get expected hash from torrent file
+        byte[] expectedHash = new byte[20];
+        System.arraycopy(piecesHashGlobal, pieceIndex * 20, expectedHash, 0, 20);
+
+        if (Arrays.equals(actualHash, expectedHash)) {
+            System.out.println("   Piece " + pieceIndex + " completed and verified!");
+            pieceCompleted[pieceIndex] = true;
+
+            // Write piece to file
+            try (RandomAccessFile file = new RandomAccessFile(outputFileGlobal, "rw")) {
+                file.seek(pieceIndex * pieceLengthGlobal);
+                file.write(pieceData);
+            }
+            System.out.println("   Successfully saved piece " + pieceIndex + " to disk");
+        } else {
+            System.out.println("   Piece " + pieceIndex + " verification failed!");
         }
     }
 
