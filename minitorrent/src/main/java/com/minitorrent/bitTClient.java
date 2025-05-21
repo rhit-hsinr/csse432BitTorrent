@@ -300,6 +300,13 @@ public class bitTClient {
                     // Thread.sleep(100);
                 }
 
+                // for updating our interest with each peer
+                if (!peer.amInterested && peer.getPiecePeerHas(pieceCompleted) > -1) {
+                    peer.amInterested = true;
+                    TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
+                    sendMsg(peer, msg);
+                }
+
                 // for sending message
                 if (!done) // requesting pieces from non-choked peers
                 {
