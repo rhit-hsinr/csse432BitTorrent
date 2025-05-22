@@ -146,13 +146,16 @@ public class Peer {
      * Sends an arbitrary protocol message to this peer.
      */
     public void sendMessage(byte[] message) throws IOException {
+        System.out.println("we pray this sends " + message.toString());
         out.write(message);
         out.flush();
         lastMessageTime = System.currentTimeMillis();
     }
 
     public void sendInterested() throws IOException {
+        System.out.println("We sending interest");
         TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
+        
         sendMessage(msg.turnIntoBytes());
         amInterested = true;
     }
@@ -174,14 +177,20 @@ public class Peer {
      * or an empty array for a keep-alive (length=0).
      */
     public byte[] readMessage() throws IOException {
+        System.out.println("We are reading the message now");
         // Read length prefix (4 bytes)
         byte[] lengthBytes = new byte[4];
-        in.readFully(lengthBytes);
+        System.out.println("Raw length bytes: " + Arrays.toString(lengthBytes));
         int length = ByteBuffer.wrap(lengthBytes).getInt();
+        System.out.println("Parsed message length: " + length);
+
+        in.readFully(lengthBytes);
 
         if (length == 0) {
             // keep-alive message
+            System.out.println("It keeps wanting to stay alive");
             return new byte[0];
+            
         }
 
         // Read message ID and payload
@@ -192,7 +201,7 @@ public class Peer {
         byte[] fullMessage = new byte[4 + length];
         System.arraycopy(lengthBytes, 0, fullMessage, 0, 4);
         System.arraycopy(message, 0, fullMessage, 4, length);
-
+        System.out.println("Full message " + fullMessage.length);
         return fullMessage;
     }
 

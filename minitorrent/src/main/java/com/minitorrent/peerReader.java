@@ -29,10 +29,11 @@ public class peerReader implements Runnable {
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
-
-            if (read != 4) {
-                throw new RuntimeException("size was not 4 when reading from peer");
-            }
+            System.out.println(read);
+            // if (read != 4) {
+            //     System.out.println("This shi is not 4: " + read);
+            //     throw new RuntimeException("size was not 4 when reading from peer");
+            // }
 
             // pulling out total length
             ByteBuffer buf = ByteBuffer.wrap(lenStorage);

@@ -1,6 +1,7 @@
 package com.minitorrent;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class TorrentMsg {
 
@@ -178,7 +179,9 @@ public class TorrentMsg {
         }
 
         // return byte message
-        return msg.array();
+        byte[] arr = msg.array();
+        System.out.println("msg array: " + Arrays.toString(arr));
+        return arr;
     }
 
     // takes byte msg and turns it into a readable msg

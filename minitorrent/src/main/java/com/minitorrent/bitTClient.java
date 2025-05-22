@@ -141,7 +141,8 @@ public class bitTClient {
         byte[] infoBytes = bencode.encode(infoDict);
         this.infoHashGlobal = MessageDigest.getInstance("SHA-1").digest(infoBytes);
 
-        // creating peer ID
+
+        // creating peer ID 
         byte[] peerId = new byte[20];
         this.peerIdGlobal = peerId;
         SecureRandom ran = new SecureRandom();
@@ -208,13 +209,13 @@ public class bitTClient {
         while (!done) {
             // pull msg from each
             for (Peer peer : peers) {
-
                 byte[] rawMessage = peer.readMessage();
 
                 TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
                 System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
                 int pieceIndex = receivedMsg.getIndex();
+
 
                 switch (receivedMsg.getType()) {
                     case KEEP_ALIVE:
