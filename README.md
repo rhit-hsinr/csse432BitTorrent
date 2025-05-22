@@ -11,6 +11,7 @@ This is a "mini-version" as we didn't implement the formal way to get pieces fro
 3. Implemented a peer class which handles the handshake, sending messages, and storing information for each peer
 4. Implemented threading and a peer reader class which reads and stores messages from all peers at the same time
 5. Implemented a torrent message decoder/encoder which formats messages to send to the peers and also formats messages sent by the peers
+6. Successfully got a text file from multiple peers
 
 ### How to run the code (in theory)
 1. You need to have Java and Maven installed and configured correctly
