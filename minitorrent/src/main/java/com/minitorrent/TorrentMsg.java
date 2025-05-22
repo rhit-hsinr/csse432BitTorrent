@@ -224,12 +224,15 @@ public class TorrentMsg {
         switch (id) {
             case 4: // have -- need to extract piece index
                 int peiceInt = buf.getInt();
+                System.out.println("I received HAVE");
                 return new TorrentMsg(MsgType.HAVE, peiceInt);
 
             case 5: // bitfield -- need to extract bitfield len
                 // but also need to extract the actual bitfield to know the pieces a peer has
                 byte[] pieces = new byte[len - 1];
                 buf.get(pieces);
+                System.out.print("I received BITFIELD");
+                System.put.println()
                 return new TorrentMsg(MsgType.BITFIELD, pieces);
 
             case 6: // request -- index, begin, length

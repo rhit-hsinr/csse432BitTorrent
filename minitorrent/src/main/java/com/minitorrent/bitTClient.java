@@ -127,6 +127,9 @@ public class bitTClient {
         this.pieceBlockTracker = new int[numPiecesGlobal];
         System.out.println("Num pieces: " + numPiecesGlobal);
 
+        int bitfieldLength = (int) Math.ceil(numPiecesGlobal / 8.0);
+        localBitfield = new byte[bitfieldLength];
+
         String piecesObj = (String) infoDict.get("pieces");
         this.piecesHashGlobal = piecesObj.getBytes(StandardCharsets.ISO_8859_1);
 
@@ -186,9 +189,11 @@ public class bitTClient {
                 // 3) Read & verify their handshake (throws if infoHash mismatches or other
                 // issues)
                 peer.receiveHandshake(infoHashGlobal);
+                TorrentMsg sendingBitField = new TorrentMsg(TorrentMsg.MsgType.BITFIELD, this.localBitfield);
+                sendMsg(peer, sendingBitField);
 
                 // 4) send "interested" message
-                peer.sendInterested();
+                // peer.sendInterested();
                 peer.amChoking = false;
                 TorrentMsg unchoke = new TorrentMsg(MsgType.UNCHOKE);
                 sendMsg(peer, unchoke);
@@ -213,7 +218,7 @@ public class bitTClient {
                         continue;
                     }
 
-                    TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
+                    TorrentMsg receivedMsg = peer.getNextMessage();
                     System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
 
@@ -256,9 +261,10 @@ public class bitTClient {
                     case BITFIELD:
                         System.out.println("Peer sent BITFIELD. Length: "
                                 + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
-                        peer.updatePeerBitfield(receivedMsg.getField());
+                        // peer.updatePeerBitfield(receivedMsg.getField());
                         // Store this peer's bitfield
                         peer.updatePeerBitfield(receivedMsg.getField());
+                        sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.INTERESTED));
                         break;
                     case HAVE:
                         System.out.println("Peer HAS piece index: " + receivedMsg.getIndex());
