@@ -270,7 +270,7 @@ public class Peer {
         }
     }
 
-    public int getPiecePeerHas(boolean[] alreadyHas) {
+    public int getPiecePeerHas(byte[] alreadyHas) {
         if (alreadyHas == null || availablePieces == null) {
             return -1;
         }
@@ -278,9 +278,9 @@ public class Peer {
         int[] neededPieces = new int[alreadyHas.length];
         int j = 0;
         for (int i = 0; i < alreadyHas.length; i++) {
-            if (!alreadyHas[i] && availablePieces.get(i)) { // client doesn't have, peer does
+            if (alreadyHas[i] == 0 && availablePieces.get(i)) { // client doesn't have, peer does
                 neededPieces[j] = i; // add to list of needed pieces
-                j++;
+                j++; // 1,1 =0 1,0 = 1 0,1 = 1 0,0 = 1
             }
         }
         if (j == 0) { // if not pieces client doesn't have that peers does

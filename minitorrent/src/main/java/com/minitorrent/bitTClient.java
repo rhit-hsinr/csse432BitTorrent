@@ -307,13 +307,19 @@ public class bitTClient {
                             break;
                     }
 
+                    if (!peer.amInterested && peer.getPiecePeerHas(localBitfield) > -1) {
+                        peer.amInterested = true;
+                        TorrentMsg msg = new TorrentMsg((TorrentMsg.MsgType.INTERESTED));
+                        sendMsg(peer, msg);
+                    }
+
                     if (!done) // requesting pieces from non-choked peers
                     {
                         int i;
                         if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
 
-                                && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't
-                                                                                   // and
+                                && (i = peer.getPiecePeerHas(localBitfield)) > -1 // make sure peer has piece we don't
+                                                                                  // and
 
                                 && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
 
