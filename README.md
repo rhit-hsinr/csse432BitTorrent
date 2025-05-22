@@ -13,7 +13,11 @@ This is a "mini-version" as we didn't implement the formal way to get pieces fro
 5. Implemented a torrent message decoder/encoder which formats messages to send to the peers and also formats messages sent by the peers
 
 ### How to run the code (in theory)
-
+1. You need to have Java and Maven installed and configured correctly
+2. Locate the run.sh file located csse432BitTorrent\minitorrent
+3. Make sure you have execute permissions -- chmod +x run.sh
+4. Type ./run.sh sample.torrent output.dat
+5. This might work or it might open up Wireshark
 
 ### Video of the program running
 
