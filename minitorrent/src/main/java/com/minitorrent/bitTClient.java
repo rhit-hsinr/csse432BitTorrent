@@ -205,202 +205,206 @@ public class bitTClient {
 
         }
 
-        // pull msg from each
-        for (Peer peer : peers) {
+        while (!done) {
+            // pull msg from each
+            for (Peer peer : peers) {
 
-            byte[] rawMessage = peer.readMessage();
+                byte[] rawMessage = peer.readMessage();
 
-            TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
-            System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
+                TorrentMsg receivedMsg = TorrentMsg.turnIntoMsg(rawMessage);
+                System.out.println("RECV from " + peer.getHost() + ":" + peer.getPort() + ": " + receivedMsg);
 
-            int pieceIndex = receivedMsg.getIndex();
+                int pieceIndex = receivedMsg.getIndex();
 
-            switch (receivedMsg.getType()) {
-                case KEEP_ALIVE:
-                    // Peer is keeping connection alive
-                    System.out.println("Peer send KEEP_ALIVE");
-                    break;
-                case CHOKE:
-                    System.out.println("Peer is CHOKING us. Cannot request pieces yet.");
-                    peer.peerChoking = true;
-                    // We are choked by this peer
-                    break;
-                case UNCHOKE:
-                    System.out.println("Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
-                    peer.peerChoking = false;
-                    // We are unchoked by this peer
-                    // Send requests for the first piece immediately after being unchoked
-                    int pieceCount = 0; // Start with first piece
-                    int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
+                switch (receivedMsg.getType()) {
+                    case KEEP_ALIVE:
+                        // Peer is keeping connection alive
+                        System.out.println("Peer send KEEP_ALIVE");
+                        break;
+                    case CHOKE:
+                        System.out.println("Peer is CHOKING us. Cannot request pieces yet.");
+                        peer.peerChoking = true;
+                        // We are choked by this peer
+                        break;
+                    case UNCHOKE:
+                        System.out.println(
+                                "Peer is UNCHOKING us! We can request pieces now (if we have their bitfield).");
+                        peer.peerChoking = false;
+                        // We are unchoked by this peer
+                        // Send requests for the first piece immediately after being unchoked
+                        int pieceCount = 0; // Start with first piece
+                        int numBlocks = (int) Math.ceil((double) pieceLengthGlobal / BLOCK_SIZE);
 
-                    for (int block = 0; block < numBlocks; block++) {
-                        int begin = block * BLOCK_SIZE;
-                        int length = (block == numBlocks - 1)
-                                ? (int) (pieceLengthGlobal - (block * BLOCK_SIZE))
-                                : BLOCK_SIZE;
+                        for (int block = 0; block < numBlocks; block++) {
+                            int begin = block * BLOCK_SIZE;
+                            int length = (block == numBlocks - 1)
+                                    ? (int) (pieceLengthGlobal - (block * BLOCK_SIZE))
+                                    : BLOCK_SIZE;
 
-                        TorrentMsg requestMsg = new TorrentMsg(TorrentMsg.MsgType.REQUEST,
-                                pieceCount, begin, length);
-                        peer.sendMessage(requestMsg.turnIntoBytes());
-                        System.out.println("   Sent REQUEST for piece " + pieceCount +
-                                ", offset " + begin + ", length " + length);
-                    }
-                    break;
-                case BITFIELD:
-                    System.out.println("Peer sent BITFIELD. Length: "
-                            + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
-                    peer.updatePeerBitfield(receivedMsg.getField());
-                    // Store this peer's bitfield
-                    peer.updatePeerBitfield(receivedMsg.getField());
-                    break;
-                case HAVE:
-                    System.out.println("Peer HAS piece index: " + receivedMsg.getIndex());
-                    peer.setPeerBitfield(pieceIndex);
-                    if (!hasPiece(localBitfield, pieceIndex)) {
-                        System.out.println("We want piece " + pieceIndex + ". Send INTERESTED");
-                        peer.amInterested = true;
-                        sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.INTERESTED));
-                    } else if (isAllTrue(peer.remoteBitfield)) {
-                        if (peer.amChoking == false) {
-                            peer.amChoking = true;
-                            sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.CHOKE));
+                            TorrentMsg requestMsg = new TorrentMsg(TorrentMsg.MsgType.REQUEST,
+                                    pieceCount, begin, length);
+                            peer.sendMessage(requestMsg.turnIntoBytes());
+                            System.out.println("   Sent REQUEST for piece " + pieceCount +
+                                    ", offset " + begin + ", length " + length);
                         }
-                    }
-                    // Update this peer's piece availability
-                    break;
-                case PIECE: // no idea if this is correct
-                    System.out.println("   Received PIECE message. Index: " + receivedMsg.getIndex() +
-                            ", Begin: " + receivedMsg.getBegin() +
-                            ", Length: " + receivedMsg.getChunk().length);
+                        break;
+                    case BITFIELD:
+                        System.out.println("Peer sent BITFIELD. Length: "
+                                + (receivedMsg.getField() != null ? receivedMsg.getField().length : "N/A"));
+                        peer.updatePeerBitfield(receivedMsg.getField());
+                        // Store this peer's bitfield
+                        peer.updatePeerBitfield(receivedMsg.getField());
+                        break;
+                    case HAVE:
+                        System.out.println("Peer HAS piece index: " + receivedMsg.getIndex());
+                        peer.setPeerBitfield(pieceIndex);
+                        if (!hasPiece(localBitfield, pieceIndex)) {
+                            System.out.println("We want piece " + pieceIndex + ". Send INTERESTED");
+                            peer.amInterested = true;
+                            sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.INTERESTED));
+                        } else if (isAllTrue(peer.remoteBitfield)) {
+                            if (peer.amChoking == false) {
+                                peer.amChoking = true;
+                                sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.CHOKE));
+                            }
+                        }
+                        // Update this peer's piece availability
+                        break;
+                    case PIECE: // no idea if this is correct
+                        System.out.println("   Received PIECE message. Index: " + receivedMsg.getIndex() +
+                                ", Begin: " + receivedMsg.getBegin() +
+                                ", Length: " + receivedMsg.getChunk().length);
 
-                    // Store the piece data
-                    pieceIndex = receivedMsg.getIndex();
-                    int begin = receivedMsg.getBegin();
-                    byte[] data = receivedMsg.getChunk();
+                        // Store the piece data
+                        pieceIndex = receivedMsg.getIndex();
+                        int begin = receivedMsg.getBegin();
+                        byte[] data = receivedMsg.getChunk();
 
-                    synchronized (pieceLock) {
-                        // Initialize buffer if needed
-                        if (pieceDataBuffers[pieceIndex] == null) {
-                            // Use actual piece length for last piece
+                        synchronized (pieceLock) {
+                            // Initialize buffer if needed
+                            if (pieceDataBuffers[pieceIndex] == null) {
+                                // Use actual piece length for last piece
+                                int thisPieceLength = pieceIndex == numPiecesGlobal - 1
+                                        ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
+                                        : (int) pieceLengthGlobal;
+                                pieceDataBuffers[pieceIndex] = new byte[thisPieceLength];
+                            }
+
+                            // Copy block data to piece buffer
+                            System.arraycopy(data, 0, pieceDataBuffers[pieceIndex], begin, data.length);
+
+                            // Update block tracker
+                            pieceBlockTracker[pieceIndex]++;
+
+                            // Calculate expected blocks for this piece
                             int thisPieceLength = pieceIndex == numPiecesGlobal - 1
                                     ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
                                     : (int) pieceLengthGlobal;
-                            pieceDataBuffers[pieceIndex] = new byte[thisPieceLength];
-                        }
+                            int expectedBlocks = (int) Math.ceil((double) thisPieceLength / BLOCK_SIZE);
 
-                        // Copy block data to piece buffer
-                        System.arraycopy(data, 0, pieceDataBuffers[pieceIndex], begin, data.length);
-
-                        // Update block tracker
-                        pieceBlockTracker[pieceIndex]++;
-
-                        // Calculate expected blocks for this piece
-                        int thisPieceLength = pieceIndex == numPiecesGlobal - 1
-                                ? (int) (fileLengthGlobal - (pieceIndex * pieceLengthGlobal))
-                                : (int) pieceLengthGlobal;
-                        int expectedBlocks = (int) Math.ceil((double) thisPieceLength / BLOCK_SIZE);
-
-                        // Check if piece is complete
-                        if (pieceBlockTracker[pieceIndex] == expectedBlocks) {
-                            verifyAndSavePiece(pieceIndex);
-                            // Exit after successfully saving one piece
-                        }
-                        if (isAllTrue(localBitfield)) {
-                            System.out.println("Download finished");
-                            done = true;
-                        }
-                    }
-                    break;
-                case INTERESTED:
-                    peer.peerInterested = true;
-                    break;
-                case UNINTERESTED:
-                    peer.peerInterested = false;
-                    break;
-                case REQUEST:
-                    int beginOffset = receivedMsg.getBegin();
-                    int blockLength = receivedMsg.getLength();
-
-                    System.out.println("Peer is REQUESTING piece " + pieceIndex);
-
-                    if (peer.amChoking) {
-                        System.out.println("We are choking the peer, not sending the piece.");
-                        break;
-                    }
-
-                    TorrentMsg reply;
-                    if (!hasPiece(localBitfield, pieceIndex)) {
-                        reply = new TorrentMsg(TorrentMsg.MsgType.BITFIELD, localBitfield);
-                    } else {
-                        byte[] replyData = new byte[blockLength];
-                        try {
-                            file.seek(receivedMsg.getBegin());
-                            int bytesRead = file.read(replyData, 0, blockLength);
-                            if (bytesRead < blockLength) {
-                                System.out.println("Warning: Expected to read " + blockLength + " bytes, but only read "
-                                        + bytesRead);
+                            // Check if piece is complete
+                            if (pieceBlockTracker[pieceIndex] == expectedBlocks) {
+                                verifyAndSavePiece(pieceIndex);
+                                // Exit after successfully saving one piece
                             }
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
+                            if (isAllTrue(localBitfield)) {
+                                System.out.println("Download finished");
+                                done = true;
+                            }
                         }
-                        reply = new TorrentMsg(TorrentMsg.MsgType.PIECE, pieceIndex, beginOffset, replyData);
-                    }
-                    sendMsg(peer, reply);
-                    break;
-                // case PIECE:
-                // if (hasPiece(localBitfield, pieceIndex)) {
-                // System.out.println("We are already have this piece");
-                // continue;
-                // }
-                // try {
-                // file.seek(receivedMsg.getBegin());
-                // file.write(receivedMsg.getChunk());
-                // } catch (Exception ex) {
-                // ex.printStackTrace();
-                // }
-                // setPiece(localBitfield, pieceIndex);
-                // TorrentMsg haveMsg = new TorrentMsg(TorrentMsg.MsgType.HAVE, pieceIndex);
-                // for (Peer p : peers) {
-                // sendMsg(p, haveMsg);
-                // }
-                // if (isAllTrue(localBitfield)) {
-                // done = true;
-                // }
-                // break;
-                case CANCEL:
-                    break;
-                default:
-                    break;
-            }
-            // Add a small delay if you want to see messages spaced out, not strictly
-            // necessary
-            // Thread.sleep(100);
+                        break;
+                    case INTERESTED:
+                        peer.peerInterested = true;
+                        break;
+                    case UNINTERESTED:
+                        peer.peerInterested = false;
+                        break;
+                    case REQUEST:
+                        int beginOffset = receivedMsg.getBegin();
+                        int blockLength = receivedMsg.getLength();
 
-            // for sending message
-            if (!done) // requesting pieces from non-choked peers
-            {
-                int i;
-                if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
-                        && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't and
-                                                                           // get
-                                                                           // index
-                        && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+                        System.out.println("Peer is REQUESTING piece " + pieceIndex);
+
+                        if (peer.amChoking) {
+                            System.out.println("We are choking the peer, not sending the piece.");
+                            break;
+                        }
+
+                        TorrentMsg reply;
+                        if (!hasPiece(localBitfield, pieceIndex)) {
+                            reply = new TorrentMsg(TorrentMsg.MsgType.BITFIELD, localBitfield);
+                        } else {
+                            byte[] replyData = new byte[blockLength];
+                            try {
+                                file.seek(receivedMsg.getBegin());
+                                int bytesRead = file.read(replyData, 0, blockLength);
+                                if (bytesRead < blockLength) {
+                                    System.out.println(
+                                            "Warning: Expected to read " + blockLength + " bytes, but only read "
+                                                    + bytesRead);
+                                }
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            }
+                            reply = new TorrentMsg(TorrentMsg.MsgType.PIECE, pieceIndex, beginOffset, replyData);
+                        }
+                        sendMsg(peer, reply);
+                        break;
+                    // case PIECE:
+                    // if (hasPiece(localBitfield, pieceIndex)) {
+                    // System.out.println("We are already have this piece");
+                    // continue;
+                    // }
+                    // try {
+                    // file.seek(receivedMsg.getBegin());
+                    // file.write(receivedMsg.getChunk());
+                    // } catch (Exception ex) {
+                    // ex.printStackTrace();
+                    // }
+                    // setPiece(localBitfield, pieceIndex);
+                    // TorrentMsg haveMsg = new TorrentMsg(TorrentMsg.MsgType.HAVE, pieceIndex);
+                    // for (Peer p : peers) {
+                    // sendMsg(p, haveMsg);
+                    // }
+                    // if (isAllTrue(localBitfield)) {
+                    // done = true;
+                    // }
+                    // break;
+                    case CANCEL:
+                        break;
+                    default:
+                        break;
+                }
+                // Add a small delay if you want to see messages spaced out, not strictly
+                // necessary
+                // Thread.sleep(100);
+
+                // for sending message
+                if (!done) // requesting pieces from non-choked peers
                 {
-
-                    int iLen = (int) pieceLengthGlobal; // length of peice
-                    if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and
-                                                                                              // does not
-                                                                                              // divide evenly
+                    int i;
+                    if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
+                            && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't and
+                                                                               // get
+                                                                               // index
+                            && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
                     {
-                        iLen = (int) (fileLengthGlobal % pieceLengthGlobal);// set to the rest of the file
-                        // since a file won't always be split evenly at the end
-                    }
 
-                    // creating request message
-                    TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) (i * pieceLengthGlobal),
-                            iLen);
-                    peer.sentRequests.add(i); // adding to the list of pieces we've asked for
-                    sendMsg(peer, req); // sending msg to peer
+                        int iLen = (int) pieceLengthGlobal; // length of peice
+                        if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece and
+                                                                                                  // does not
+                                                                                                  // divide evenly
+                        {
+                            iLen = (int) (fileLengthGlobal % pieceLengthGlobal);// set to the rest of the file
+                            // since a file won't always be split evenly at the end
+                        }
+
+                        // creating request message
+                        TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i, (int) (i * pieceLengthGlobal),
+                                iLen);
+                        peer.sentRequests.add(i); // adding to the list of pieces we've asked for
+                        sendMsg(peer, req); // sending msg to peer
+                    }
                 }
             }
         }
