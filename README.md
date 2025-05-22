@@ -1,35 +1,19 @@
 # csse432BitTorrent
-A mini-version of the BitTorrent
+## A mini-version of a BitClient 
+This is a "mini-version" as we didn't implement the formal way to get pieces from a peer (the rarest first) and some small logistical stuff was left out.
 
-good doc -- https://www.bittorrent.org/beps/bep_0003.html
+### Accomplishments
+1. Created a torrent maker which takes a file and tracker and creates a torrent file with them
+2. Implemented a BitClient
+  a. Implemented torrent and tracker parsing to connect to tracker and get a list of peers
+  b. Implemented a process which loops through all peers and pulls one of their messages which is then classfied and handle in the correct way
+  c. Implemented a process to request pieces from a peer and also send pieces to a peer
+6. Implemented a peer class which handles the handshake, sending messages, and storing information for each peer
+7. Implemented threading and a peer reader class which reads and stores messages from all peers at the same time
+8. Implemented a torrent message decoder/encoder which formats messages to send to the peers and also formats messages sent by the peers
 
--- torrent file -- for each file 
--- tracker 
-    -- file splitter 
--- server for client
--- client for client 
-    When a peer finishes downloading a piece and checks that the hash matches, it announces that it has that piece to all of its peers
+### How to run code (in theory)
 
 
-Read file data: Read the content of the file to be shared.
-Divide into pieces: Split the file into fixed-size pieces (e.g., 256KB, 512KB, 1MB).
-Calculate piece hashes: Generate SHA-1 hashes for each piece.
-Create metadata dictionary: Construct a dictionary (map) containing the metadata. This dictionary should include the tracker URL, file information, and the list of piece hashes.
-Bencode the metadata: Encode the metadata dictionary using the Bencoding format. Bencoding is a serialization format used in torrent files.
-Write to file: Save the bencoded data to a .torrent file.
+### video of program running
 
-pstrlen (1 byte): Length of the protocol string
-protocol (19 bytes): The actual “BitTorrent protocol” string
-reserved (8 bytes): Reserved for future extensions
-info_hash (20 bytes): A SHA1 hash of the info dictionary in the torrent file
-peer_id (20 bytes): A unique ID for the client
-
-TODO. 1-6 -- Richard
-1) interested/uninterested,
-2) have,
-3) piece,
-4) request,
-5) bitfield,
-6) cancel,
-7) updating interest status, -- Anh?
-8) request piece from peers -- Keeley
