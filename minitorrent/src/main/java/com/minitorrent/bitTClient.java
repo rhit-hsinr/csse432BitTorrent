@@ -263,35 +263,36 @@ public class bitTClient {
                             peer.peerInterested = false;
                             break;
                         case REQUEST:
-                        int beginOffset = receivedMsg.getBegin();
-                        int blockLength = receivedMsg.getLength();
+                            int beginOffset = receivedMsg.getBegin();
+                            int blockLength = receivedMsg.getLength();
 
-                        System.out.println("Peer is REQUESTING piece " + pieceIndex);
+                            System.out.println("Peer is REQUESTING piece " + pieceIndex);
 
-                        if (peer.amChoking) {
-                            System.out.println("We are choking the peer, not sending the piece.");
-                            break;
-                        }
-
-                        TorrentMsg reply;
-                        if (!hasPiece(localBitfield, pieceIndex)) {
-                            reply = new TorrentMsg(TorrentMsg.MsgType.BITFIELD, localBitfield);
-                        } else {
-                            byte[] replyData = new byte[blockLength];
-                            try {
-                                file.seek(receivedMsg.getBegin());
-                                int bytesRead = file.read(replyData, 0, blockLength);
-                                if (bytesRead < blockLength) {
-                                    System.out.println("Warning: Expected to read " + blockLength + " bytes, but only read "
-                                            + bytesRead);
-                                }
-                            } catch (IOException ex) {
-                                ex.printStackTrace();
+                            if (peer.amChoking) {
+                                System.out.println("We are choking the peer, not sending the piece.");
+                                break;
                             }
-                            reply = new TorrentMsg(TorrentMsg.MsgType.PIECE, pieceIndex, beginOffset, replyData);
-                        }
-                        sendMsg(peer, reply);
-                        break;
+
+                            TorrentMsg reply;
+                            if (!hasPiece(localBitfield, pieceIndex)) {
+                                reply = new TorrentMsg(TorrentMsg.MsgType.BITFIELD, localBitfield);
+                            } else {
+                                byte[] replyData = new byte[blockLength];
+                                try {
+                                    file.seek(receivedMsg.getBegin());
+                                    int bytesRead = file.read(replyData, 0, blockLength);
+                                    if (bytesRead < blockLength) {
+                                        System.out.println(
+                                                "Warning: Expected to read " + blockLength + " bytes, but only read "
+                                                        + bytesRead);
+                                    }
+                                } catch (IOException ex) {
+                                    ex.printStackTrace();
+                                }
+                                reply = new TorrentMsg(TorrentMsg.MsgType.PIECE, pieceIndex, beginOffset, replyData);
+                            }
+                            sendMsg(peer, reply);
+                            break;
                         case CANCEL:
                             break;
                         default:
@@ -516,8 +517,22 @@ public class bitTClient {
             if (pieceBlockTracker[pieceIndex] == expectedBlocks) {
                 verifyAndSavePiece(pieceIndex);
                 if (pieceCompleted[pieceIndex]) {
-                    peer.sentRequests.remove(Integer.valueOf(pieceIndex)); // Remove from sent requests
-                    setPiece(localBitfield, pieceIndex); // Update our bitfield
+                    // Piece verified and saved successfully
+                    peer.sentRequests.remove(Integer.valueOf(pieceIndex));
+                    setPiece(localBitfield, pieceIndex);
+
+                    // Request next piece if we haven't finished
+                    if (!isAllPiecesComplete()) {
+                        requestNextPieces(peer);
+                    } else {
+                        done = true;
+                    }
+                } else {
+                    // Verification failed - reset and retry
+                    System.out.println("   Piece " + pieceIndex + " verification failed - requesting again");
+                    pieceDataBuffers[pieceIndex] = null;
+                    pieceBlockTracker[pieceIndex] = 0;
+                    requestPiece(peer, pieceIndex);
                 }
             }
         }
