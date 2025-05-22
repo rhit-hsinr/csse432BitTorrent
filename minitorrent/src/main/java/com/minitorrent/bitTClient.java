@@ -136,6 +136,9 @@ public class bitTClient {
         byte[] infoBytes = bencode.encode(infoDict);
         this.infoHashGlobal = MessageDigest.getInstance("SHA-1").digest(infoBytes);
 
+        int bitfieldLength = (int) Math.ceil(numPiecesGlobal / 8.0);
+        localBitfield = new byte[bitfieldLength];
+
         // creating peer ID
         byte[] peerId = new byte[20];
         this.peerIdGlobal = peerId;
