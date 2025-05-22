@@ -180,12 +180,12 @@ public class Peer {
         System.out.println("We are reading the message now");
         // Read length prefix (4 bytes)
         byte[] lengthBytes = new byte[4];
-        System.out.println("Raw length bytes: " + Arrays.toString(lengthBytes));
+        // System.out.println("Raw length bytes: " + Arrays.toString(lengthBytes));
         int length = ByteBuffer.wrap(lengthBytes).getInt();
         System.out.println("Parsed message length: " + length);
 
         in.readFully(lengthBytes);
-
+        System.out.println("this never gonna print gng");
         if (length == 0) {
             // keep-alive message
             System.out.println("It keeps wanting to stay alive");

@@ -205,7 +205,7 @@ public class bitTClient {
         }
 
         // pull msg from each
-        while (!isAllPiecesComplete()) {
+        while (!done) {
             for (Peer peer : peers) {
                 try {
                     byte[] rawMessage = peer.readMessage();
