@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import com.dampcake.bencode.Bencode;
 import com.dampcake.bencode.Type;
+import com.minitorrent.TorrentMsg.MsgType;
 
 public class bitTClient {
     // global access data
@@ -187,6 +188,9 @@ public class bitTClient {
 
                 // 4) send "interested" message
                 peer.sendInterested();
+                peer.amChoking = false;
+                TorrentMsg unchoke = new TorrentMsg(MsgType.UNCHOKE);
+                sendMsg(peer, unchoke);
             } catch (SocketTimeoutException e) {
                 System.err.println("TIMEOUT with " + peer.getHost() + ":" + peer.getPort() + " -> " + e.getMessage());
             } catch (EOFException e) {
