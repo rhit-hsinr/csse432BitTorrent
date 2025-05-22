@@ -298,6 +298,43 @@ public class bitTClient {
                         default:
                             break;
                     }
+
+                    if (!done) // requesting pieces from non-choked peers
+                    {
+                        int i;
+                        if (!peer.amChoking && peer.peerInterested // check it is not choked and is interested
+
+                                && (i = peer.getPiecePeerHas(pieceCompleted)) > -1 // make sure peer has piece we don't
+                                                                                   // and
+
+                                && !peer.sentRequests.contains(i)) // check that we haven't asked for this index already
+
+                        {
+
+                            int iLen = (int) pieceLengthGlobal; // length of peice
+
+                            if (i == numPiecesGlobal - 1 && fileLengthGlobal % pieceLengthGlobal > 0) // is last piece
+                                                                                                      // and
+
+                            {
+
+                                iLen = (int) (fileLengthGlobal % pieceLengthGlobal);// set to the rest of the file
+
+                                // since a file won't always be split evenly at the end
+
+                            }
+
+                            TorrentMsg req = new TorrentMsg(TorrentMsg.MsgType.REQUEST, i,
+                                    (int) (i * pieceLengthGlobal), iLen);
+
+                            peer.sentRequests.add(i); // adding to the list of pieces we've asked for
+
+                            sendMsg(peer, req); // sending msg to peer
+
+                        }
+
+                    }
+
                 } catch (EOFException e) {
                     System.out.println("Peer closed connection: " + peer.getHost() + ":" + peer.getPort());
                     peer.close();
