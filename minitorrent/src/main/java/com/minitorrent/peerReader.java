@@ -3,6 +3,7 @@ package com.minitorrent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Queue;
 
 //always accept peer communication
@@ -21,8 +22,10 @@ public class peerReader implements Runnable {
     public void run() {
         byte[] lenStorage = new byte[4];
         int read = 0;
+        System.out.println("i was here to run");
 
         while (!stopped) {
+            System.out.println("i was here to run in while ");
             // getting len of message
             try {
                 read = peerInput.read(lenStorage, 0, 4);
@@ -56,6 +59,8 @@ public class peerReader implements Runnable {
                     e.printStackTrace();
                 }
             }
+            System.out.println("this is the rest: " + Arrays.toString(rest));
+            System.out.println(read);
 
             if (read != len) {
                 System.out.println("read less than expected from peer");
