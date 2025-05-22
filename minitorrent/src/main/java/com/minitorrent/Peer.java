@@ -45,8 +45,6 @@ public class Peer {
     private static final int MAX_FAILURES = 3;
     private static final long KEEP_ALIVE_INTERVAL = 120_000; // 2 minutes
 
-
-
     private Queue<TorrentMsg> messageQueue;
 
     public Peer(String host, int port) {
@@ -155,7 +153,7 @@ public class Peer {
     public void sendInterested() throws IOException {
         System.out.println("We sending interest");
         TorrentMsg msg = new TorrentMsg(TorrentMsg.MsgType.INTERESTED);
-        
+
         sendMessage(msg.turnIntoBytes());
         amInterested = true;
     }
@@ -176,33 +174,10 @@ public class Peer {
      * Returns a byte[] where index 0 is the msg ID (if length>0),
      * or an empty array for a keep-alive (length=0).
      */
-    public byte[] readMessage() throws IOException {
-        System.out.println("We are reading the message now");
-        // Read length prefix (4 bytes)
-        byte[] lengthBytes = new byte[4];
-        // System.out.println("Raw length bytes: " + Arrays.toString(lengthBytes));
-        int length = ByteBuffer.wrap(lengthBytes).getInt();
-        System.out.println("Parsed message length: " + length);
-
-        in.readFully(lengthBytes);
-        System.out.println("this never gonna print gng");
-        if (length == 0) {
-            // keep-alive message
-            System.out.println("It keeps wanting to stay alive");
-            return new byte[0];
-            
+    public TorrentMsg readMessage() throws IOException {
+        synchronized (messageQueue) {
+            return messageQueue.poll();
         }
-
-        // Read message ID and payload
-        byte[] message = new byte[length];
-        in.readFully(message);
-
-        // Combine length prefix and message for consistent parsing
-        byte[] fullMessage = new byte[4 + length];
-        System.arraycopy(lengthBytes, 0, fullMessage, 0, 4);
-        System.arraycopy(message, 0, fullMessage, 4, length);
-        System.out.println("Full message " + fullMessage.length);
-        return fullMessage;
     }
 
     public void handleMessage(TorrentMsg msg) {
