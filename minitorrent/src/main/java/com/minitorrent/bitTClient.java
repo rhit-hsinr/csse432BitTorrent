@@ -306,7 +306,7 @@ public class bitTClient {
                             // Exit after successfully saving one piece
                         }
                         if (isAllTrue(localBitfield)) {
-                            System.log.println("Download finished");
+                            System.out.println("Download finished");
                             done = true;
                         }
                     }
