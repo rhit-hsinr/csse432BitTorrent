@@ -59,7 +59,7 @@ public class peerReader implements Runnable {
                     e.printStackTrace();
                 }
             }
-            System.out.println("this is the rest: " + Arrays.toString(rest));
+            // System.out.println("this is the rest: " + Arrays.toString(rest));
             System.out.println(read);
 
             if (read != len) {

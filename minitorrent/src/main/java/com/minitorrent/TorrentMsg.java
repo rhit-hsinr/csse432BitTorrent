@@ -220,7 +220,7 @@ public class TorrentMsg {
         int index;
         int begin;
         int length;
-
+        System.out.println("this is the id: " + id);
         switch (id) {
             case 4: // have -- need to extract piece index
                 int peiceInt = buf.getInt();
@@ -232,7 +232,7 @@ public class TorrentMsg {
                 byte[] pieces = new byte[len - 1];
                 buf.get(pieces);
                 System.out.print("I received BITFIELD");
-                System.put.println()
+                // System.put.println()
                 return new TorrentMsg(MsgType.BITFIELD, pieces);
 
             case 6: // request -- index, begin, length

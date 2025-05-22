@@ -127,9 +127,6 @@ public class bitTClient {
         this.pieceBlockTracker = new int[numPiecesGlobal];
         System.out.println("Num pieces: " + numPiecesGlobal);
 
-        int bitfieldLength = (int) Math.ceil(numPiecesGlobal / 8.0);
-        localBitfield = new byte[bitfieldLength];
-
         String piecesObj = (String) infoDict.get("pieces");
         this.piecesHashGlobal = piecesObj.getBytes(StandardCharsets.ISO_8859_1);
 
