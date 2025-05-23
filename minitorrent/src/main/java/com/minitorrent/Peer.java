@@ -293,8 +293,16 @@ public class Peer {
     }
 
     public void close() {
+        System.out.println("I am closed...");
         if (reader != null) {
             reader.endThread();
+            try {
+                in.close();
+                out.close();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
         }
         try {
             if (socket != null) {

@@ -193,6 +193,7 @@ public class bitTClient {
 
                 // 4) send "interested" message
                 // peer.sendInterested();
+                sendMsg(peer, new TorrentMsg(TorrentMsg.MsgType.BITFIELD, this.localBitfield));
                 peer.amChoking = false;
                 TorrentMsg unchoke = new TorrentMsg(MsgType.UNCHOKE);
                 sendMsg(peer, unchoke);
@@ -307,6 +308,12 @@ public class bitTClient {
                             break;
                     }
 
+                    if (isAllTrue(localBitfield)) {
+                        System.out.println("are we done?");
+                        done = false;
+                        break;
+                    }
+
                     if (!peer.amInterested && peer.getPiecePeerHas(localBitfield) > -1) {
                         peer.amInterested = true;
                         TorrentMsg msg = new TorrentMsg((TorrentMsg.MsgType.INTERESTED));
@@ -361,6 +368,10 @@ public class bitTClient {
                 // Thread.sleep(100);
             }
         }
+        for (Peer peer : peers) {
+            peer.close();
+        }
+        return;
     }
 
     private List<Peer> connectToTracker(String announceUrl) throws IOException {

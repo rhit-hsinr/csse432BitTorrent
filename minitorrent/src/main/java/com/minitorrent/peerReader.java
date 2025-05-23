@@ -2,6 +2,7 @@ package com.minitorrent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Queue;
@@ -12,7 +13,7 @@ public class peerReader implements Runnable {
     private int TOTALHELD = 10; // only keep ten messages
     private InputStream peerInput = null;
     private Queue<TorrentMsg> allMgs = null;
-    private boolean stopped = false;
+    private volatile boolean stopped = false;
 
     public peerReader(InputStream is, Queue<TorrentMsg> allMsgs) {
         this.peerInput = is;
@@ -29,6 +30,13 @@ public class peerReader implements Runnable {
             // getting len of message
             try {
                 read = peerInput.read(lenStorage, 0, 4);
+            } catch (SocketException e) {
+                if ("Socket closed".equals(e.getMessage())) {
+                    System.out.println("Socket was closed intentionally.");
+                    break;
+                } else {
+                    e.printStackTrace();
+                }
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
@@ -54,6 +62,12 @@ public class peerReader implements Runnable {
             for (read = 0; read < len;) {
                 try {
                     read += peerInput.read(rest, 4 + read, len - read);
+                } catch (SocketException e) {
+                    if ("Socket closed".equals(e.getMessage())) {
+                        System.out.println("Socket was closed intentionally.");
+                    } else {
+                        e.printStackTrace();
+                    }
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
