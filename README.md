@@ -19,6 +19,7 @@ This is a "mini-version" as we didn't implement the formal way to get pieces fro
 3. Make sure you have execute permissions -- chmod +x run.sh
 4. Type ./run.sh sample.torrent output.dat
 5. This might work or it might open up Wireshark
+6. The final file should be in output.dat
 
 ### Video of the program running
 
