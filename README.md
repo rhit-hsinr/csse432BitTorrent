@@ -22,4 +22,4 @@ This is a "mini-version" as we didn't implement the formal way to get pieces fro
 6. The final file should be in output.txt
 
 ### Video of the program running
-
+https://app.screencastify.com/v2/watch/Xpf24sUKJ5bCQiaO9m16
